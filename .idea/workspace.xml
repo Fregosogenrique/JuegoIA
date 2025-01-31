@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version beta Juego 1&#10;Para entregar 04/02/25">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version beta Juego 1&#10;Para entregar 04/02/25" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -28,12 +26,12 @@
     &quot;assignee&quot;: &quot;Fregosogenrique&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Fregosogenrique/JuegoIA.git&quot;,
-    &quot;accountId&quot;: &quot;af238762-95ec-4fbe-93eb-8494e71c19e8&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Fregosogenrique/JuegoIA.git",
+    "accountId": "c985347a-531e-4053-a501-f05899298257"
   }
-}</component>
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 0
 }</component>
