@@ -1,0 +1,3 @@
+([('main',
+   '/Users/enriquefregoso/PycharmProjects/JuegoCuadricula/dist/main',
+   'EXECUTABLE')],)
