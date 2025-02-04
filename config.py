@@ -9,8 +9,8 @@ class GameConfig:
     SCREEN_HEIGHT = GRID_HEIGHT * SQUARE_SIZE
 
     # Gameplay
-    OBSTACLE_COUNT = 100
-    GAME_SPEED = 100
+    OBSTACLE_COUNT = 100 #Cantidad de obstaculos a generar
+    GAME_SPEED = 100 #Velocidad del juego
 
     # Colores
     WHITE = (255, 255, 255)

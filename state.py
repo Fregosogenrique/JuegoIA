@@ -13,7 +13,7 @@ class GameState:
         self.selected_item = None
 
     def reset(self):
-        """Reinicia el estado del juego"""
+        #Reinicia el estado del juego
         self.player_pos = [1, 1]
         self.house_pos = [random.randint(0, GameConfig.GRID_WIDTH - 1),
                           random.randint(0, GameConfig.GRID_HEIGHT - 1)]
@@ -23,7 +23,7 @@ class GameState:
         self.generate_obstacles()
 
     def generate_obstacles(self):
-        """Genera obstáculos aleatorios"""
+        #Generacion de obstáculos aleatorios
         self.obstacles.clear()
         while len(self.obstacles) < GameConfig.OBSTACLE_COUNT:
             pos = [random.randint(0, GameConfig.GRID_WIDTH - 1),

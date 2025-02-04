@@ -18,8 +18,7 @@ class GameRenderer:
                                                 (GameConfig.SQUARE_SIZE,
                                                  GameConfig.SQUARE_SIZE))
 
-    def draw_grid(self):
-        """Dibuja la cuadrícula del juego"""
+    def draw_grid(self):#Dibuja la cuadrícula del juego
         for x in range(0, GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
                       GameConfig.SQUARE_SIZE):
             for y in range(0, GameConfig.SCREEN_HEIGHT, GameConfig.SQUARE_SIZE):
@@ -27,8 +26,7 @@ class GameRenderer:
                                  GameConfig.SQUARE_SIZE)
                 pygame.draw.rect(self.screen, GameConfig.WHITE, rect, 1)
 
-    def draw_game_elements(self, game_state):
-        """Dibuja todos los elementos del juego"""
+    def draw_game_elements(self, game_state):#Funcion para los obstaculos
         # Dibujar obstáculos
         for obs in game_state.obstacles:
             obstacle_rect = pygame.Rect(
@@ -37,7 +35,7 @@ class GameRenderer:
                 GameConfig.SQUARE_SIZE,
                 GameConfig.SQUARE_SIZE
             )
-            pygame.draw.rect(self.screen, GameConfig.GREEN, obstacle_rect)
+            pygame.draw.rect(self.screen, GameConfig.GRAY, obstacle_rect)
 
         # Dibujar jugador
         player_rect = pygame.Rect(
@@ -58,8 +56,7 @@ class GameRenderer:
         self.screen.blit(self.player_image, player_rect.topleft)
         self.screen.blit(self.house_image, house_rect.topleft)
 
-    def draw_sidebar(self, game_state):
-        """Dibuja la barra lateral"""
+    def draw_sidebar(self, game_state):#Manejo de la barra lateral
         # Fondo de la barra lateral
         sidebar_rect = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
@@ -127,7 +124,7 @@ class GameRenderer:
                                 200 + i * 30))
 
     def show_congratulations(self):
-        """Muestra mensaje de felicitación"""
+        #Muestra mensaje de felicitación"""
         font = pygame.font.Font(None, 74)
         text = font.render("¡Felicitaciones!", True, GameConfig.GREEN)
         text_rect = text.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,

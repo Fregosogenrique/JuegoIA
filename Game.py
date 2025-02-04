@@ -15,7 +15,7 @@ class Game:
         self.input_handler = InputHandler()
 
     def handle_events(self):
-        """Maneja todos los eventos del juego"""
+        #Maneja todos los eventos del juego
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -37,7 +37,7 @@ class Game:
                     self.handle_movement(event.key)
 
     def handle_movement(self, key):
-        """Maneja el movimiento del jugador"""
+        #Maneja el movimiento del jugador en el mapa
         dx = dy = 0
         if key == pygame.K_UP:
             dy = -1
@@ -51,7 +51,7 @@ class Game:
         self.move_player(dx, dy)
 
     def move_player(self, dx, dy):
-        """Mueve al jugador en la dirección especificada"""
+        #Mueve al jugador en la dirección especificada
         new_x = self.game_state.player_pos[0] + dx
         new_y = self.game_state.player_pos[1] + dy
 
@@ -66,7 +66,7 @@ class Game:
                 self.game_state.player_pos[1] = new_y
 
     def run(self):
-        """Bucle principal del juego"""
+        #Bucle principal del juego
         while True:
             self.renderer.screen.fill(GameConfig.BLACK)
             self.renderer.draw_grid()

@@ -6,7 +6,7 @@ from config import GameConfig
 class InputHandler:
     @staticmethod
     def handle_sidebar_click(pos, game_state):
-        """Maneja los clics en la barra lateral"""
+        #Maneja los clics en la barra lateral
         sidebar_x = GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE
 
         if pos[0] > sidebar_x:
@@ -17,7 +17,7 @@ class InputHandler:
 
     @staticmethod
     def handle_grid_click(pos, game_state):
-        """Maneja los clics en la cuadrícula"""
+        #Maneja los clics en la cuadrícula
         grid_x = pos[0] // GameConfig.SQUARE_SIZE
         grid_y = pos[1] // GameConfig.SQUARE_SIZE
 
