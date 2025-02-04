@@ -112,9 +112,11 @@ class GameRenderer:
         # Instrucciones
         if not game_state.game_started:
             instructions = [
-                "1. Selecciona un elemento",
+                "1. Selecciona un ",
+                "   elemento",
                 "2. Haz clic en la",
-                "   cuadrícula para colocar",
+                "   cuadrícula para",
+                "   posicionar",
                 "3. Presiona una tecla",
                 "   para iniciar"
             ]
