@@ -3,13 +3,13 @@ class GameConfig:
     # Dimensiones
     GRID_WIDTH = 40
     GRID_HEIGHT = 30
-    SQUARE_SIZE = 20
+    SQUARE_SIZE = 25
     SIDEBAR_WIDTH = 200
     SCREEN_WIDTH = GRID_WIDTH * SQUARE_SIZE + SIDEBAR_WIDTH
     SCREEN_HEIGHT = GRID_HEIGHT * SQUARE_SIZE
 
     # Gameplay
-    OBSTACLE_COUNT = 100 #Cantidad de obstaculos a generar
+    OBSTACLE_COUNT = 0#Cantidad de obstaculos a generar
     GAME_SPEED = 100 #Velocidad del juego
 
     # Colores
