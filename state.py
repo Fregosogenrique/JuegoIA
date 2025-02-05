@@ -22,6 +22,7 @@ class GameState:
         self.selected_item = None
         self.generate_obstacles()
 
+    """Funcion temporalmente desahabilitada
     def generate_obstacles(self):
         #Generacion de obstáculos aleatorios
         self.obstacles.clear()
@@ -31,4 +32,4 @@ class GameState:
             if (pos != self.player_pos and
                     pos != self.house_pos and
                     pos not in self.obstacles):
-                self.obstacles.append(pos)
+                self.obstacles.append(pos)"""

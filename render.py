@@ -27,7 +27,7 @@ class GameRenderer:
                 pygame.draw.rect(self.screen, GameConfig.WHITE, rect, 1)
 
     def draw_game_elements(self, game_state):#Funcion para los obstaculos
-        # Dibujar obstáculos
+        """# Dibujar obstáculos /Temporalmente deshabilitado
         for obs in game_state.obstacles:
             obstacle_rect = pygame.Rect(
                 obs[0] * GameConfig.SQUARE_SIZE,
@@ -35,7 +35,7 @@ class GameRenderer:
                 GameConfig.SQUARE_SIZE,
                 GameConfig.SQUARE_SIZE
             )
-            pygame.draw.rect(self.screen, GameConfig.GRAY, obstacle_rect)
+            pygame.draw.rect(self.screen, GameConfig.GRAY, obstacle_rect)"""""
 
         # Dibujar jugador
         player_rect = pygame.Rect(
@@ -126,9 +126,34 @@ class GameRenderer:
     def show_congratulations(self):
         #Muestra mensaje de felicitación"""
         font = pygame.font.Font(None, 74)
-        text = font.render("¡Felicitaciones!", True, GameConfig.GREEN)
+        text = font.render("¡Felicitaciones, ruta alcanzada!", True, GameConfig.GREEN)
         text_rect = text.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,
                                         GameConfig.SCREEN_HEIGHT // 2))
         self.screen.blit(text, text_rect)
         pygame.display.flip()
         pygame.time.delay(2000)
+
+    # Añadir este método a la clase GameRenderer
+    def draw_path(self, path):
+        """Dibuja el camino calculado por A*"""
+        if path:
+            for i in range(len(path) - 1):
+                start_pos = path[i]
+                end_pos = path[i + 1]
+
+                start_pixel = (
+                    start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                    start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                )
+                end_pixel = (
+                    end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                    end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                )
+
+                pygame.draw.line(
+                    self.screen,
+                    (0, 255, 0),  # Color verde para el camino
+                    start_pixel,
+                    end_pixel,
+                    2  # Grosor de la línea
+                )
