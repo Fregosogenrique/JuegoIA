@@ -4,10 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version beta Juego 1&#10;Para entregar 04/02/25">
-      <change afterPath="$PROJECT_DIR$/AStar.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Juego Version 2, con A* como algoritmo de busqueda para mejor ruta">
       <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/render.py" beforeDir="false" afterPath="$PROJECT_DIR$/render.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/state.py" beforeDir="false" afterPath="$PROJECT_DIR$/state.py" afterDir="false" />
     </list>
@@ -138,7 +137,15 @@
       <option name="project" value="LOCAL" />
       <updated>1738695738693</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Juego Version 2, con A* como algoritmo de busqueda para mejor ruta">
+      <option name="closed" value="true" />
+      <created>1738761158069</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1738761158069</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -155,6 +162,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Version beta Juego 1" />
     <MESSAGE value="Version beta Juego 1&#10;Para entregar 04/02/25" />
-    <option name="LAST_COMMIT_MESSAGE" value="Version beta Juego 1&#10;Para entregar 04/02/25" />
+    <MESSAGE value="Juego Version 2, con A* como algoritmo de busqueda para mejor ruta" />
+    <option name="LAST_COMMIT_MESSAGE" value="Juego Version 2, con A* como algoritmo de busqueda para mejor ruta" />
   </component>
 </project>

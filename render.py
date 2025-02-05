@@ -27,7 +27,7 @@ class GameRenderer:
                 pygame.draw.rect(self.screen, GameConfig.WHITE, rect, 1)
 
     def draw_game_elements(self, game_state):#Funcion para los obstaculos
-        """# Dibujar obstáculos /Temporalmente deshabilitado
+        # Dibujar obstáculos /Temporalmente deshabilitado
         for obs in game_state.obstacles:
             obstacle_rect = pygame.Rect(
                 obs[0] * GameConfig.SQUARE_SIZE,
@@ -35,7 +35,7 @@ class GameRenderer:
                 GameConfig.SQUARE_SIZE,
                 GameConfig.SQUARE_SIZE
             )
-            pygame.draw.rect(self.screen, GameConfig.GRAY, obstacle_rect)"""""
+            pygame.draw.rect(self.screen, GameConfig.GRAY, obstacle_rect)
 
         # Dibujar jugador
         player_rect = pygame.Rect(
@@ -124,7 +124,7 @@ class GameRenderer:
                                 200 + i * 30))
 
     def show_congratulations(self):
-        #Muestra mensaje de felicitación"""
+        #Muestra mensaje de felicitación
         font = pygame.font.Font(None, 74)
         text = font.render("¡Felicitaciones, ruta alcanzada!", True, GameConfig.GREEN)
         text_rect = text.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,

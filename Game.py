@@ -34,7 +34,7 @@ class Game:
                         self.input_handler.handle_sidebar_click(event.pos, self.game_state)
                 elif event.type == pygame.KEYDOWN:
                     self.game_state.game_started = True
-                    #self.game_state.generate_obstacles()
+                    self.game_state.generate_obstacles()
                     # Calcular el camino inicial cuando comienza el juego
                     self.calculate_path()
 
