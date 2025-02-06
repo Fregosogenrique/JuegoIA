@@ -1,5 +1,4 @@
-#Modulo Principal del juego
-# Game.py
+
 import sys
 import pygame
 from config import GameConfig
@@ -17,7 +16,7 @@ class Game:
         self.input_handler = InputHandler()
         self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.ucs = UCS(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
-        self.current_algorithm = "astar"  # puede ser "astar" o "ucs"
+        self.current_algorithm = "astar"
         self.astar_path = None
         self.ucs_path = None
         self.path_index = 0
@@ -45,7 +44,6 @@ class Game:
                         self.calculate_paths()
 
     def calculate_paths(self):
-        """Calcula los caminos usando ambos algoritmos"""
         self.astar_path = self.astar.find_path(
             self.game_state.player_pos,
             self.game_state.house_pos,
@@ -59,11 +57,9 @@ class Game:
         self.path_index = 1
 
     def get_current_path(self):
-        """Retorna el camino del algoritmo actualmente seleccionado"""
         return self.astar_path if self.current_algorithm == "astar" else self.ucs_path
 
     def update_player_movement(self):
-        """Actualiza la posición del jugador siguiendo el camino calculado"""
         current_path = self.get_current_path()
         if not current_path or self.path_index >= len(current_path):
             return

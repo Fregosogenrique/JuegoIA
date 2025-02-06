@@ -1,4 +1,3 @@
-#Aqui se realizan las configuraciones de las constantes del juego
 class GameConfig:
     # Dimensiones
     GRID_WIDTH = 40
@@ -9,8 +8,8 @@ class GameConfig:
     SCREEN_HEIGHT = GRID_HEIGHT * SQUARE_SIZE
 
     # Gameplay
-    OBSTACLE_COUNT = 150#Cantidad de obstaculos a generar
-    GAME_SPEED = 100 #Velocidad del juego
+    OBSTACLE_COUNT = 150
+    GAME_SPEED = 100
 
     # Colores
     WHITE = (255, 255, 255)
