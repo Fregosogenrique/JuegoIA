@@ -133,27 +133,56 @@ class GameRenderer:
         pygame.display.flip()
         pygame.time.delay(2000)
 
-    # Añadir este método a la clase GameRenderer
-    def draw_path(self, path):
-        """Dibuja el camino calculado por A*"""
-        if path:
-            for i in range(len(path) - 1):
-                start_pos = path[i]
-                end_pos = path[i + 1]
-
-                start_pixel = (
-                    start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
-                end_pixel = (
-                    end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
-
-                pygame.draw.line(
-                    self.screen,
-                    (0, 255, 0),  # Color verde para el camino
-                    start_pixel,
-                    end_pixel,
-                    2  # Grosor de la línea
-                )
+    def draw_path(self, astar_path=None, ucs_path=None):
+        def draw_route(path, color):
+            if path:
+                for i in range(len(path) - 1):
+                    start_pos = path[i]
+                    end_pos = path[i + 1]
+                    
+                    start_pixel = (
+                        start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                        start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                    )
+                    end_pixel = (
+                        end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                        end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                    )
+                    
+                    pygame.draw.line(
+                        self.screen,
+                        color,
+                        start_pixel,
+                        end_pixel,
+                        2
+                    )
+        
+        # Dibujar ambas rutas
+        draw_route(astar_path, (0, 255, 0))  # Verde para A*
+        draw_route(ucs_path, (0, 0, 255))    # Azul para UCS
+        
+        # Agregar leyenda en la barra lateral
+        font = pygame.font.Font(None, 24)
+        legend_y = 400
+        
+        # Leyenda para A*
+        pygame.draw.line(
+            self.screen,
+            (0, 255, 0),
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, legend_y + 10),
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 30, legend_y + 10),
+            2
+        )
+        astar_text = font.render("A* Path", True, GameConfig.BLACK)
+        self.screen.blit(astar_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 40, legend_y))
+        
+        # Leyenda para UCS
+        pygame.draw.line(
+            self.screen,
+            (0, 0, 255),
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, legend_y + 40),
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 30, legend_y + 40),
+            2
+        )
+        ucs_text = font.render("UCS Path", True, GameConfig.BLACK)
+        self.screen.blit(ucs_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 40, legend_y + 30))
