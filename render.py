@@ -134,7 +134,7 @@ class GameRenderer:
         pygame.time.delay(2000)
 
     # Añadir este método a la clase GameRenderer
-    def draw_path(self, path):
+    def draw_astar_path(self, path):
         """Dibuja el camino calculado por A*"""
         if path:
             for i in range(len(path) - 1):
@@ -152,8 +152,43 @@ class GameRenderer:
 
                 pygame.draw.line(
                     self.screen,
-                    (0, 255, 0),  # Color verde para el camino
+                    GameConfig.GREEN,  # Color verde para A*
                     start_pixel,
                     end_pixel,
                     2  # Grosor de la línea
                 )
+
+    def draw_ucs_path(self, path):
+        """Dibuja el camino calculado por UCS"""
+        if path:
+            for i in range(len(path) - 1):
+                start_pos = path[i]
+                end_pos = path[i + 1]
+
+                start_pixel = (
+                    start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                    start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                )
+                end_pixel = (
+                    end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                    end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                )
+
+                pygame.draw.line(
+                    self.screen,
+                    GameConfig.BLUE,  # Color azul para UCS
+                    start_pixel,
+                    end_pixel,
+                    2  # Grosor de la línea
+                )
+
+    def draw_path(self, astar_path=None, ucs_path=None):
+        """
+        Dibuja los caminos calculados por A* y UCS
+        :param astar_path: Lista de coordenadas del camino calculado por A*
+        :param ucs_path: Lista de coordenadas del camino calculado por UCS
+        """
+        if astar_path:
+            self.draw_astar_path(astar_path)
+        if ucs_path:
+            self.draw_ucs_path(ucs_path)

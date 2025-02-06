@@ -6,7 +6,7 @@ from config import GameConfig
 from state import GameState
 from render import GameRenderer
 from Eventos_Teclado import InputHandler
-from AStar import AStar
+from ADB import AStar, UCS
 
 
 class Game:
@@ -15,8 +15,11 @@ class Game:
         self.game_state = GameState()
         self.renderer = GameRenderer()
         self.input_handler = InputHandler()
-        self.pathfinder = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
-        self.current_path = None
+        self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
+        self.ucs = UCS(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
+        self.current_algorithm = "astar"  # puede ser "astar" o "ucs"
+        self.astar_path = None
+        self.ucs_path = None
         self.path_index = 0
         self.move_timer = 0
 
@@ -33,35 +36,49 @@ class Game:
                     else:
                         self.input_handler.handle_sidebar_click(event.pos, self.game_state)
                 elif event.type == pygame.KEYDOWN:
-                    self.game_state.game_started = True
-                    self.game_state.generate_obstacles()
-                    # Calcular el camino inicial cuando comienza el juego
-                    self.calculate_path()
+                    if event.key == pygame.K_SPACE:  # Iniciar juego con espacio
+                        self.game_state.game_started = True
+                        self.game_state.generate_obstacles()
+                        self.calculate_paths()
+                    elif event.key == pygame.K_TAB:  # Cambiar algoritmo con TAB
+                        self.current_algorithm = "ucs" if self.current_algorithm == "astar" else "astar"
+                        self.calculate_paths()
 
-    def calculate_path(self):
-        """Calcula el camino usando A*"""
-        self.current_path = self.pathfinder.find_path(
+    def calculate_paths(self):
+        """Calcula los caminos usando ambos algoritmos"""
+        self.astar_path = self.astar.find_path(
             self.game_state.player_pos,
             self.game_state.house_pos,
             self.game_state.obstacles
         )
-        self.path_index = 1 if self.current_path else 0
+        self.ucs_path = self.ucs.find_path(
+            self.game_state.player_pos,
+            self.game_state.house_pos,
+            self.game_state.obstacles
+        )
+        self.path_index = 1
+
+    def get_current_path(self):
+        """Retorna el camino del algoritmo actualmente seleccionado"""
+        return self.astar_path if self.current_algorithm == "astar" else self.ucs_path
 
     def update_player_movement(self):
         """Actualiza la posición del jugador siguiendo el camino calculado"""
-        if not self.current_path or self.path_index >= len(self.current_path):
+        current_path = self.get_current_path()
+        if not current_path or self.path_index >= len(current_path):
             return
 
         self.move_timer += 1
-        if self.move_timer >= GameConfig.GAME_SPEED // 50:  # Ajusta la velocidad del movimiento
+        if self.move_timer >= GameConfig.GAME_SPEED // 50:
             self.move_timer = 0
-            self.game_state.player_pos = self.current_path[self.path_index]
+            self.game_state.player_pos = current_path[self.path_index]
             self.path_index += 1
 
             if self.game_state.player_pos == self.game_state.house_pos:
                 self.renderer.show_congratulations()
                 self.game_state.reset()
-                self.current_path = None
+                self.astar_path = None
+                self.ucs_path = None
                 self.path_index = 0
 
     def run(self):
@@ -69,15 +86,14 @@ class Game:
             self.renderer.screen.fill(GameConfig.BLACK)
             self.renderer.draw_grid()
 
-            # Dibujar el camino si existe
-            if self.current_path:
-                self.renderer.draw_path(self.current_path)
+            # Dibujar ambos caminos si existen
+            self.renderer.draw_path(self.astar_path, self.ucs_path)
 
             self.renderer.draw_game_elements(self.game_state)
-            self.renderer.draw_sidebar(self.game_state)
+            self.renderer.draw_sidebar(self.game_state, self.current_algorithm)
             self.handle_events()
 
-            if self.game_state.game_started and self.current_path:
+            if self.game_state.game_started and self.get_current_path():
                 self.update_player_movement()
 
             pygame.display.flip()

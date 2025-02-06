@@ -18,6 +18,7 @@ class GameConfig:
     GREEN = (0, 255, 0)
     GRAY = (128, 128, 128)
     RED = (255, 0, 0)
+    BLUE = (0,0,255)
 
     # Rutas de imágenes
     PLAYER_IMAGE = 'bomberman.png.webp'
