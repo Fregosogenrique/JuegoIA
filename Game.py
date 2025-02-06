@@ -1,10 +1,37 @@
-#Modulo Principal del juego
-# Game.py
 import sys
 import pygame
 from config import GameConfig
-from state import GameState
 from render import GameRenderer
+import random
+
+class GameState:
+    def __init__(self):
+        self.player_pos = (1, 1)
+        self.house_pos = (8, 8)
+        self.obstacles = set()
+        self.game_started = False
+        self.victory = False
+        self.victory_timer = 0
+        self.show_victory_message = False
+    
+    def reset(self):
+        self.player_pos = (1, 1)
+        self.house_pos = (8, 8)
+        self.obstacles = set()
+        self.game_started = False
+        self.victory = False
+        self.victory_timer = 0
+        self.show_victory_message = False
+    
+    def generate_obstacles(self):
+        self.obstacles = set()
+        num_obstacles = 15
+        while len(self.obstacles) < num_obstacles:
+            x = random.randint(0, GameConfig.GRID_WIDTH - 1)
+            y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
+            pos = (x, y)
+            if pos != self.player_pos and pos != self.house_pos:
+                self.obstacles.add(pos)
 from Eventos_Teclado import InputHandler
 from ADB import *
 
@@ -19,7 +46,8 @@ class Game:
         self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.ucs = UCS(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.edit_mode = None  # Puede ser 'player' o 'house'
-        self.current_algorithm = 'astar'
+        self.current_algorithm = 'astar'  # Puede ser 'astar' o 'ucs'
+        self.selected_path = 'astar'  # Ruta actualmente seleccionada para seguir
         self.astar_path = None
         self.ucs_path = None
         self.current_path = None
@@ -66,9 +94,17 @@ class Game:
                         self.edit_mode = 'house' if self.edit_mode != 'house' else None
             
             # Manejo de eventos de teclado
+            # Manejo de eventos de teclado
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and not self.game_state.game_started:
-                    self.game_state.game_started = True
+                if event.key == pygame.K_a:
+                    self.selected_path = 'astar'
+                    self.current_path = self.astar_path
+                    self.path_index = 1 if self.current_path else 0
+                elif event.key == pygame.K_u:
+                    self.selected_path = 'ucs'
+                    self.current_path = self.ucs_path
+                    self.path_index = 1 if self.current_path else 0
+                elif event.key == pygame.K_SPACE and not self.game_state.game_started:
                     self.game_state.generate_obstacles()
                     self.calculate_path()
                 elif event.key == pygame.K_TAB:
@@ -104,13 +140,11 @@ class Game:
         self.astar_cost = self.calculate_path_cost(self.astar_path)
         self.ucs_cost = self.calculate_path_cost(self.ucs_path)
         
-        # Seleccionar el camino más eficiente
-        if self.astar_cost <= self.ucs_cost:
+        # Mantener el camino seleccionado por el usuario
+        if self.selected_path == 'astar':
             self.current_path = self.astar_path
-            self.current_algorithm = 'astar'
         else:
             self.current_path = self.ucs_path
-            self.current_algorithm = 'ucs'
         
         self.path_index = 1 if self.current_path else 0
 
@@ -124,9 +158,10 @@ class Game:
             self.move_timer = 0
             self.game_state.player_pos = self.current_path[self.path_index]
             self.path_index += 1
-
             if self.game_state.player_pos == self.game_state.house_pos:
-                self.game_over = True
+                self.game_state.victory = True
+                self.game_state.show_victory_message = True
+                self.game_state.victory_timer = 0
                 return
 
     def reset_game(self):
@@ -137,21 +172,24 @@ class Game:
         self.path_index = 0
         self.move_timer = 0
         self.current_algorithm = 'astar'
-        self.game_over = False
         self.edit_mode = None
+        pygame.time.wait(200)  # Pausa breve para transición suave
     def run(self):
         while True:
             self.renderer.screen.fill(GameConfig.BLACK)
             self.renderer.draw_grid()
             
-            if self.game_over:
+            if self.game_state.victory:
                 self.renderer.show_congratulations()
                 pygame.display.flip()
-                pygame.time.wait(2000)
-                self.game_over = False
-                self.reset_game()
-                continue
-
+                
+                if self.game_state.victory_timer < 50:  # Aproximadamente 1 segundo
+                    self.game_state.victory_timer += 1
+                else:
+                    self.reset_game()
+                    pygame.display.flip()
+                    continue
+            
             if self.astar_path or self.ucs_path:
                 self.renderer.draw_path(self.astar_path, self.ucs_path)
 

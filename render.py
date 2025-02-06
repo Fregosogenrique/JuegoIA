@@ -184,8 +184,14 @@ class GameRenderer:
 
             # Destacar el camino más eficiente
             best_path_text = font.render("Camino más eficiente:", True, GameConfig.BLACK)
+            path_text = font.render("Ruta seleccionada:", True, GameConfig.BLACK)
+            current_path = "A*" if self.game_state.selected_path == 'astar' else "UCS"
+            path_value = font.render(current_path, True, GameConfig.GREEN)
+            self.screen.blit(path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
+            self.screen.blit(path_value, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
+
             best_algo = "A*" if self.game_state.astar_cost <= self.game_state.ucs_cost else "UCS"
-            best_path_value = font.render(best_algo, True, GameConfig.GREEN)
+            best_path_value = font.render("Ruta más eficiente: " + best_algo, True, GameConfig.GREEN)
             self.screen.blit(best_path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
             self.screen.blit(best_path_value, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
         
@@ -197,7 +203,7 @@ class GameRenderer:
             (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 30, legend_y + 10),
             2
         )
-        astar_text = font.render("A* Path", True, GameConfig.BLACK)
+        astar_text = font.render("A* Path (Presiona 'A')", True, GameConfig.BLACK)
         self.screen.blit(astar_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 40, legend_y))
         
         # Leyenda para UCS
@@ -208,5 +214,5 @@ class GameRenderer:
             (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 30, legend_y + 40),
             2
         )
-        ucs_text = font.render("UCS Path", True, GameConfig.BLACK)
+        ucs_text = font.render("UCS Path (Presiona 'U')", True, GameConfig.BLACK)
         self.screen.blit(ucs_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 40, legend_y + 30))
