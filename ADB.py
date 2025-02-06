@@ -10,8 +10,8 @@ class AStar:
             new_x, new_y = x + dx, y + dy
             if (0 <= new_x < self.width and
                     0 <= new_y < self.height and
-                    [new_x, new_y] not in obstacles):
-                neighbors.append([new_x, new_y])
+                    (new_x, new_y) not in obstacles):
+                neighbors.append((new_x, new_y))
         return neighbors
 
     def manhattan_distance(self, pos1, pos2):
@@ -34,9 +34,9 @@ class AStar:
             if current == goal:
                 path = []
                 while current in came_from:
-                    path.append(list(current))
+                    path.append(current)
                     current = came_from[current]
-                path.append(list(start))
+                path.append(start)
                 path.reverse()
                 return path
 
@@ -72,8 +72,8 @@ class UCS:
             new_x, new_y = x + dx, y + dy
             if (0 <= new_x < self.width and
                     0 <= new_y < self.height and
-                    [new_x, new_y] not in obstacles):
-                neighbors.append([new_x, new_y])
+                    (new_x, new_y) not in obstacles):
+                neighbors.append((new_x, new_y))
         return neighbors
 
     def find_path(self, start, goal, obstacles):
@@ -92,9 +92,9 @@ class UCS:
             if current == goal:
                 path = []
                 while current in came_from:
-                    path.append(list(current))
+                    path.append(current)
                     current = came_from[current]
-                path.append(list(start))
+                path.append(start)
                 path.reverse()
                 return path
 
