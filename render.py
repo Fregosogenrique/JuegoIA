@@ -164,6 +164,21 @@ class GameRenderer:
         # Agregar leyenda en la barra lateral
         font = pygame.font.Font(None, 24)
         legend_y = 400
+
+        # Mostrar costos en la barra lateral
+        if 'game_state' in dir(self) and hasattr(self.game_state, 'astar_cost'):
+            cost_y = 300
+            astar_cost_text = font.render(f"A* Cost: {self.game_state.astar_cost:.2f}", True, GameConfig.BLACK)
+            ucs_cost_text = font.render(f"UCS Cost: {self.game_state.ucs_cost:.2f}", True, GameConfig.BLACK)
+            self.screen.blit(astar_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y))
+            self.screen.blit(ucs_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 30))
+
+            # Destacar el camino más eficiente
+            best_path_text = font.render("Camino más eficiente:", True, GameConfig.BLACK)
+            best_algo = "A*" if self.game_state.astar_cost <= self.game_state.ucs_cost else "UCS"
+            best_path_value = font.render(best_algo, True, GameConfig.GREEN)
+            self.screen.blit(best_path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
+            self.screen.blit(best_path_value, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
         
         # Leyenda para A*
         pygame.draw.line(

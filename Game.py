@@ -21,6 +21,8 @@ class Game:
         self.astar_path = None
         self.ucs_path = None
         self.current_path = None
+        self.astar_cost = float('inf')
+        self.ucs_cost = float('inf')
         self.path_index = 0
         self.move_timer = 0
 
@@ -48,6 +50,17 @@ class Game:
                     elif event.key == pygame.K_r:
                         self.reset_game()
 
+    def calculate_path_cost(self, path):
+        if not path:
+            return float('inf')
+        cost = 0
+        for i in range(len(path) - 1):
+            # Calculamos el costo como la distancia Manhattan entre puntos consecutivos
+            x1, y1 = path[i]
+            x2, y2 = path[i + 1]
+            cost += abs(x2 - x1) + abs(y2 - y1)
+        return cost
+
     def calculate_path(self):
         self.astar_path = self.astar.find_path(
             self.game_state.player_pos,
@@ -59,7 +72,19 @@ class Game:
             self.game_state.house_pos,
             self.game_state.obstacles
         )
-        self.current_path = self.astar_path if self.current_algorithm == 'astar' else self.ucs_path
+        
+        # Calcular costos
+        self.astar_cost = self.calculate_path_cost(self.astar_path)
+        self.ucs_cost = self.calculate_path_cost(self.ucs_path)
+        
+        # Seleccionar el camino más eficiente
+        if self.astar_cost <= self.ucs_cost:
+            self.current_path = self.astar_path
+            self.current_algorithm = 'astar'
+        else:
+            self.current_path = self.ucs_path
+            self.current_algorithm = 'ucs'
+        
         self.path_index = 1 if self.current_path else 0
 
     def update_player_movement(self):
