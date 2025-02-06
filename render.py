@@ -1,3 +1,4 @@
+#Renderizacion del juego
 import pygame
 from config import GameConfig
 
@@ -17,7 +18,7 @@ class GameRenderer:
                                                 (GameConfig.SQUARE_SIZE,
                                                  GameConfig.SQUARE_SIZE))
 
-    def draw_grid(self):
+    def draw_grid(self):#Dibuja la cuadrícula del juego
         for x in range(0, GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
                       GameConfig.SQUARE_SIZE):
             for y in range(0, GameConfig.SCREEN_HEIGHT, GameConfig.SQUARE_SIZE):
@@ -25,7 +26,8 @@ class GameRenderer:
                                  GameConfig.SQUARE_SIZE)
                 pygame.draw.rect(self.screen, GameConfig.WHITE, rect, 1)
 
-    def draw_game_elements(self, game_state):
+    def draw_game_elements(self, game_state):#Funcion para los obstaculos
+        # Dibujar obstáculos /Temporalmente deshabilitado
         for obs in game_state.obstacles:
             obstacle_rect = pygame.Rect(
                 obs[0] * GameConfig.SQUARE_SIZE,
@@ -54,8 +56,8 @@ class GameRenderer:
         self.screen.blit(self.player_image, player_rect.topleft)
         self.screen.blit(self.house_image, house_rect.topleft)
 
-    def draw_sidebar(self, game_state, current_algorithm="astar"):
-        # Dibujar fondo de la barra lateral
+    def draw_sidebar(self, game_state):#Manejo de la barra lateral
+        # Fondo de la barra lateral
         sidebar_rect = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
             0,
@@ -64,100 +66,65 @@ class GameRenderer:
         )
         pygame.draw.rect(self.screen, GameConfig.GRAY, sidebar_rect)
 
-        # Renderizar el texto
-        font = pygame.font.Font(None, 36)
-        
-        # Sección de Algoritmo
-        algo_text = font.render(f"Algoritmo:", True, GameConfig.WHITE)
-        algo_rect = algo_text.get_rect(topleft=(
-            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-            20
-        ))
-        self.screen.blit(algo_text, algo_rect)
+        # Configurar fuente
+        font = pygame.font.Font(None, 24)
 
-        algo_name = "A*" if current_algorithm == "astar" else "UCS"
-        algo_value = font.render(algo_name, True, GameConfig.GREEN if current_algorithm == "astar" else GameConfig.BLUE)
-        algo_value_rect = algo_value.get_rect(topleft=(
-            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-            60
-        ))
-        self.screen.blit(algo_value, algo_value_rect)
+        # Título
+        title = font.render("Configuración Inicial", True, GameConfig.BLACK)
+        self.screen.blit(title, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, 20))
 
-        # Instrucciones para cambiar algoritmo
-        change_text = font.render("TAB para cambiar", True, GameConfig.WHITE)
-        change_rect = change_text.get_rect(topleft=(
+        # Botones
+        player_button = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-            100
-        ))
-        self.screen.blit(change_text, change_rect)
+            60,
+            180,
+            40
+        )
+        house_button = pygame.Rect(
+            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
+            120,
+            180,
+            40
+        )
 
+        # Colorear botones
+        pygame.draw.rect(
+            self.screen,
+            GameConfig.RED if game_state.selected_item == 'player' else GameConfig.WHITE,
+            player_button
+        )
+        pygame.draw.rect(
+            self.screen,
+            GameConfig.RED if game_state.selected_item == 'house' else GameConfig.WHITE,
+            house_button
+        )
+
+        # Texto de botones
+        player_text = font.render("Posición Jugador", True, GameConfig.BLACK)
+        house_text = font.render("Posición Casa", True, GameConfig.BLACK)
+
+        self.screen.blit(player_text, (player_button.x + 10, player_button.y + 10))
+        self.screen.blit(house_text, (house_button.x + 10, house_button.y + 10))
+
+        # Instrucciones
         if not game_state.game_started:
-            # Botones de posicionamiento
-            player_button = pygame.Rect(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-                160,
-                180,
-                40
-            )
-            house_button = pygame.Rect(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-                220,
-                180,
-                40
-            )
-
-            # Dibujar botones
-            pygame.draw.rect(
-                self.screen,
-                GameConfig.RED if game_state.selected_item == 'player' else GameConfig.WHITE,
-                player_button
-            )
-            pygame.draw.rect(
-                self.screen,
-                GameConfig.RED if game_state.selected_item == 'house' else GameConfig.WHITE,
-                house_button
-            )
-
-            # Texto de los botones
-            button_font = pygame.font.Font(None, 24)
-            player_text = button_font.render("Posición Jugador", True, GameConfig.BLACK)
-            house_text = button_font.render("Posición Casa", True, GameConfig.BLACK)
-
-            self.screen.blit(player_text, (player_button.x + 10, player_button.y + 10))
-            self.screen.blit(house_text, (house_button.x + 10, house_button.y + 10))
-
-            # Instrucciones adicionales
             instructions = [
-                "1. Selecciona un",
+                "1. Selecciona un ",
                 "   elemento",
                 "2. Haz clic en la",
                 "   cuadrícula para",
                 "   posicionar",
-                "3. Presiona ESPACIO",
+                "3. Presiona una tecla",
                 "   para iniciar"
             ]
             for i, text in enumerate(instructions):
-                instruction = button_font.render(text, True, GameConfig.WHITE)
+                instruction = font.render(text, True, GameConfig.BLACK)
                 self.screen.blit(instruction,
-                            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-                            280 + i * 30))
-        else:
-            # Mostrar mensaje de juego en curso
-            game_text = font.render("Juego en", True, GameConfig.WHITE)
-            text_rect = game_text.get_rect(center=(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + GameConfig.SIDEBAR_WIDTH // 2,
-                GameConfig.SCREEN_HEIGHT // 2
-            ))
-            self.screen.blit(game_text, text_rect)
-
-            progress_text = font.render("progreso", True, GameConfig.WHITE)
-            progress_rect = progress_text.get_rect(center=(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + GameConfig.SIDEBAR_WIDTH // 2,
-                GameConfig.SCREEN_HEIGHT // 2 + 40
-            ))
-            self.screen.blit(progress_text, progress_rect)
+                               (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
+                                200 + i * 30))
 
     def show_congratulations(self):
+        #Muestra mensaje de felicitación
         font = pygame.font.Font(None, 74)
         text = font.render("¡Felicitaciones, ruta alcanzada!", True, GameConfig.GREEN)
         text_rect = text.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,
@@ -167,6 +134,7 @@ class GameRenderer:
         pygame.time.delay(2000)
 
     # Añadir este método a la clase GameRenderer
+    def draw_path(self, path):
         """Dibuja el camino calculado por A*"""
         if path:
             for i in range(len(path) - 1):
@@ -184,37 +152,8 @@ class GameRenderer:
 
                 pygame.draw.line(
                     self.screen,
-                    GameConfig.GREEN,  # Color verde para A*
+                    (0, 255, 0),  # Color verde para el camino
                     start_pixel,
                     end_pixel,
                     2  # Grosor de la línea
                 )
-
-    def draw_ucs_path(self, path):
-        if path:
-            for i in range(len(path) - 1):
-                start_pos = path[i]
-                end_pos = path[i + 1]
-
-                start_pixel = (
-                    start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
-                end_pixel = (
-                    end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
-
-                pygame.draw.line(
-                    self.screen,
-                    GameConfig.BLUE,  # Color azul para UCS
-                    start_pixel,
-                    end_pixel,
-                    2  # Grosor de la línea
-                )
-
-    def draw_path(self, astar_path=None, ucs_path=None):
-        if astar_path:
-            self.draw_astar_path(astar_path)
-        if ucs_path:
-            self.draw_ucs_path(ucs_path)
