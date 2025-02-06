@@ -3,7 +3,8 @@ import pygame
 from config import GameConfig
 
 class GameRenderer:
-    def __init__(self):
+    def __init__(self, game_state):
+        self.game_state = game_state
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH,
                                              GameConfig.SCREEN_HEIGHT))
         pygame.display.set_caption("Fregoso Gutierrez IA25A")
@@ -26,9 +27,9 @@ class GameRenderer:
                                  GameConfig.SQUARE_SIZE)
                 pygame.draw.rect(self.screen, GameConfig.WHITE, rect, 1)
 
-    def draw_game_elements(self, game_state):#Funcion para los obstaculos
-        # Dibujar obstáculos /Temporalmente deshabilitado
-        for obs in game_state.obstacles:
+    def draw_game_elements(self):
+        # Dibujar obstáculos
+        for obs in self.game_state.obstacles:
             obstacle_rect = pygame.Rect(
                 obs[0] * GameConfig.SQUARE_SIZE,
                 obs[1] * GameConfig.SQUARE_SIZE,
@@ -39,16 +40,16 @@ class GameRenderer:
 
         # Dibujar jugador
         player_rect = pygame.Rect(
-            game_state.player_pos[0] * GameConfig.SQUARE_SIZE,
-            game_state.player_pos[1] * GameConfig.SQUARE_SIZE,
+            self.game_state.player_pos[0] * GameConfig.SQUARE_SIZE,
+            self.game_state.player_pos[1] * GameConfig.SQUARE_SIZE,
             GameConfig.SQUARE_SIZE,
             GameConfig.SQUARE_SIZE
         )
 
         # Dibujar casa
         house_rect = pygame.Rect(
-            game_state.house_pos[0] * GameConfig.SQUARE_SIZE,
-            game_state.house_pos[1] * GameConfig.SQUARE_SIZE,
+            self.game_state.house_pos[0] * GameConfig.SQUARE_SIZE,
+            self.game_state.house_pos[1] * GameConfig.SQUARE_SIZE,
             GameConfig.SQUARE_SIZE,
             GameConfig.SQUARE_SIZE
         )
@@ -56,7 +57,7 @@ class GameRenderer:
         self.screen.blit(self.player_image, player_rect.topleft)
         self.screen.blit(self.house_image, house_rect.topleft)
 
-    def draw_sidebar(self, game_state, edit_mode):  # Manejo de la barra lateral
+    def draw_sidebar(self, edit_mode):  # Manejo de la barra lateral
         # Fondo de la barra lateral
         sidebar_rect = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
@@ -107,7 +108,7 @@ class GameRenderer:
         self.screen.blit(house_text, (house_button.x + 10, house_button.y + 10))
 
         # Instrucciones
-        if not game_state.game_started:
+        if not self.game_state.game_started:
             instructions = [
                 "1. Selecciona un ",
                 "   elemento",
@@ -175,25 +176,23 @@ class GameRenderer:
         legend_y = 400
 
         # Mostrar costos en la barra lateral
-        if 'game_state' in dir(self) and hasattr(self.game_state, 'astar_cost'):
-            cost_y = 300
-            astar_cost_text = font.render(f"A* Cost: {self.game_state.astar_cost:.2f}", True, GameConfig.BLACK)
-            ucs_cost_text = font.render(f"UCS Cost: {self.game_state.ucs_cost:.2f}", True, GameConfig.BLACK)
-            self.screen.blit(astar_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y))
-            self.screen.blit(ucs_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 30))
+        cost_y = 300
 
-            # Destacar el camino más eficiente
-            best_path_text = font.render("Camino más eficiente:", True, GameConfig.BLACK)
-            path_text = font.render("Ruta seleccionada:", True, GameConfig.BLACK)
-            current_path = "A*" if self.game_state.selected_path == 'astar' else "UCS"
-            path_value = font.render(current_path, True, GameConfig.GREEN)
-            self.screen.blit(path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
-            self.screen.blit(path_value, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
+        # Mostrar costos
+        astar_cost_text = font.render(f"A* Cost: {self.game_state.astar_cost:.2f}", True, GameConfig.BLACK)
+        ucs_cost_text = font.render(f"UCS Cost: {self.game_state.ucs_cost:.2f}", True, GameConfig.BLACK)
+        self.screen.blit(astar_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y))
+        self.screen.blit(ucs_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 30))
 
-            best_algo = "A*" if self.game_state.astar_cost <= self.game_state.ucs_cost else "UCS"
-            best_path_value = font.render("Ruta más eficiente: " + best_algo, True, GameConfig.GREEN)
-            self.screen.blit(best_path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
-            self.screen.blit(best_path_value, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
+        # Mostrar ruta seleccionada
+        current_path = "A*" if self.game_state.selected_path == 'astar' else "UCS"
+        selected_text = font.render(f"Ruta seleccionada: {current_path}", True, GameConfig.GREEN)
+        self.screen.blit(selected_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
+
+        # Mostrar ruta más eficiente
+        best_algo = "A*" if self.game_state.astar_cost <= self.game_state.ucs_cost else "UCS"
+        best_path_text = font.render(f"Ruta más eficiente: {best_algo}", True, GameConfig.GREEN)
+        self.screen.blit(best_path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
         
         # Leyenda para A*
         pygame.draw.line(

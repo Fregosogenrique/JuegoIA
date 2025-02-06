@@ -13,6 +13,9 @@ class GameState:
         self.victory = False
         self.victory_timer = 0
         self.show_victory_message = False
+        self.selected_path = 'astar'  # Por defecto A*
+        self.astar_cost = float('inf')
+        self.ucs_cost = float('inf')
     
     def reset(self):
         self.player_pos = (1, 1)
@@ -25,7 +28,7 @@ class GameState:
     
     def generate_obstacles(self):
         self.obstacles = set()
-        num_obstacles = 15
+        num_obstacles = 150
         while len(self.obstacles) < num_obstacles:
             x = random.randint(0, GameConfig.GRID_WIDTH - 1)
             y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
@@ -40,7 +43,7 @@ class Game:
     def __init__(self):
         pygame.init()
         self.game_state = GameState()
-        self.renderer = GameRenderer()
+        self.renderer = GameRenderer(self.game_state)
         self.game_over = False
         self.input_handler = InputHandler()
         self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
@@ -55,6 +58,7 @@ class Game:
         self.ucs_cost = float('inf')
         self.path_index = 0
         self.move_timer = 0
+        self.game_state.game_started = False
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -107,6 +111,9 @@ class Game:
                 elif event.key == pygame.K_SPACE and not self.game_state.game_started:
                     self.game_state.generate_obstacles()
                     self.calculate_path()
+                    self.game_state.game_started = True
+                    self.path_index = 1 if self.current_path else 0
+                    self.move_timer = 0
                 elif event.key == pygame.K_TAB:
                     self.current_algorithm = 'ucs' if self.current_algorithm == 'astar' else 'astar'
                     if self.game_state.game_started:
@@ -150,7 +157,7 @@ class Game:
 
     def update_player_movement(self):
         """Actualiza la posición del jugador siguiendo el camino calculado"""
-        if not self.current_path or self.path_index >= len(self.current_path):
+        if not self.game_state.game_started or not self.current_path or self.path_index >= len(self.current_path):
             return
 
         self.move_timer += 1
@@ -158,6 +165,8 @@ class Game:
             self.move_timer = 0
             self.game_state.player_pos = self.current_path[self.path_index]
             self.path_index += 1
+            
+            # Verificar si llegamos al final del camino
             if self.game_state.player_pos == self.game_state.house_pos:
                 self.game_state.victory = True
                 self.game_state.show_victory_message = True
@@ -180,21 +189,31 @@ class Game:
             self.renderer.draw_grid()
             
             if self.game_state.victory:
+                # Dibujamos todo el estado del juego normalmente
+                self.renderer.draw_grid()
+                self.renderer.draw_game_elements()
+                self.renderer.draw_sidebar(self.edit_mode)
+                
+                # Mostramos el mensaje de victoria
                 self.renderer.show_congratulations()
                 pygame.display.flip()
                 
-                if self.game_state.victory_timer < 50:  # Aproximadamente 1 segundo
+                # Esperamos un momento antes de reiniciar
+                if self.game_state.victory_timer < 30:  # Medio segundo
                     self.game_state.victory_timer += 1
+                    pygame.time.delay(50)  # Pequeña pausa para estabilizar la pantalla
                 else:
                     self.reset_game()
-                    pygame.display.flip()
                     continue
             
             if self.astar_path or self.ucs_path:
-                self.renderer.draw_path(self.astar_path, self.ucs_path)
+                if self.astar_path or self.ucs_path:
+                    self.renderer.draw_path(self.astar_path, self.ucs_path)
+                    self.game_state.astar_cost = self.astar_cost
+                    self.game_state.ucs_cost = self.ucs_cost
 
-            self.renderer.draw_game_elements(self.game_state)
-            self.renderer.draw_sidebar(self.game_state, self.edit_mode)
+            self.renderer.draw_game_elements()
+            self.renderer.draw_sidebar(self.edit_mode)
             self.handle_events()
 
             if self.game_state.game_started and self.current_path:
