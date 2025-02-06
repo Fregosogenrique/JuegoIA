@@ -14,9 +14,11 @@ class Game:
         pygame.init()
         self.game_state = GameState()
         self.renderer = GameRenderer()
+        self.game_over = False
         self.input_handler = InputHandler()
         self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.ucs = UCS(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
+        self.edit_mode = None  # Puede ser 'player' o 'house'
         self.current_algorithm = 'astar'
         self.astar_path = None
         self.ucs_path = None
@@ -31,25 +33,50 @@ class Game:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
-            if not self.game_state.game_started:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.pos[0] < GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE:
-                        self.input_handler.handle_grid_click(event.pos, self.game_state)
-                    else:
-                        self.input_handler.handle_sidebar_click(event.pos, self.game_state)
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        self.game_state.game_started = True
-                        self.game_state.generate_obstacles()
+            
+            # Manejo de clics del mouse
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = event.pos
+                if x < GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE:
+                    # Clic en el grid
+                    grid_x = x // GameConfig.SQUARE_SIZE
+                    grid_y = y // GameConfig.SQUARE_SIZE
+                    grid_pos = (grid_x, grid_y)
+                    
+                    if self.edit_mode == 'player':
+                        if grid_pos not in self.game_state.obstacles and grid_pos != self.game_state.house_pos:
+                            self.game_state.player_pos = grid_pos
+                            if self.game_state.game_started:
+                                self.calculate_path()
+                    elif self.edit_mode == 'house':
+                        if grid_pos not in self.game_state.obstacles and grid_pos != self.game_state.player_pos:
+                            self.game_state.house_pos = grid_pos
+                            if self.game_state.game_started:
+                                self.calculate_path()
+                else:
+                    # Clic en la barra lateral
+                    sidebar_x = x - GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE
+                    
+                    # Detectar clic en botón de jugador
+                    if 10 <= sidebar_x <= 190 and 60 <= y <= 100:
+                        self.edit_mode = 'player' if self.edit_mode != 'player' else None
+                    
+                    # Detectar clic en botón de casa
+                    elif 10 <= sidebar_x <= 190 and 120 <= y <= 160:
+                        self.edit_mode = 'house' if self.edit_mode != 'house' else None
+            
+            # Manejo de eventos de teclado
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_state.game_started:
+                    self.game_state.game_started = True
+                    self.game_state.generate_obstacles()
+                    self.calculate_path()
+                elif event.key == pygame.K_TAB:
+                    self.current_algorithm = 'ucs' if self.current_algorithm == 'astar' else 'astar'
+                    if self.game_state.game_started:
                         self.calculate_path()
-                    elif event.key == pygame.K_TAB:
-                        self.current_algorithm = 'ucs' if self.current_algorithm == 'astar' else 'astar'
-                        if self.game_state.game_started:
-                            self.calculate_path()
-                    elif event.key == pygame.K_r:
-                        self.reset_game()
-
+                elif event.key == pygame.K_r:
+                    self.reset_game()
     def calculate_path_cost(self, path):
         if not path:
             return float('inf')
@@ -99,8 +126,8 @@ class Game:
             self.path_index += 1
 
             if self.game_state.player_pos == self.game_state.house_pos:
-                self.renderer.show_congratulations()
-                self.reset_game()
+                self.game_over = True
+                return
 
     def reset_game(self):
         self.game_state.reset()
@@ -110,16 +137,26 @@ class Game:
         self.path_index = 0
         self.move_timer = 0
         self.current_algorithm = 'astar'
+        self.game_over = False
+        self.edit_mode = None
     def run(self):
         while True:
             self.renderer.screen.fill(GameConfig.BLACK)
             self.renderer.draw_grid()
+            
+            if self.game_over:
+                self.renderer.show_congratulations()
+                pygame.display.flip()
+                pygame.time.wait(2000)
+                self.game_over = False
+                self.reset_game()
+                continue
 
             if self.astar_path or self.ucs_path:
                 self.renderer.draw_path(self.astar_path, self.ucs_path)
 
             self.renderer.draw_game_elements(self.game_state)
-            self.renderer.draw_sidebar(self.game_state)
+            self.renderer.draw_sidebar(self.game_state, self.edit_mode)
             self.handle_events()
 
             if self.game_state.game_started and self.current_path:

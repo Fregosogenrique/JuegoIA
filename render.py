@@ -56,7 +56,7 @@ class GameRenderer:
         self.screen.blit(self.player_image, player_rect.topleft)
         self.screen.blit(self.house_image, house_rect.topleft)
 
-    def draw_sidebar(self, game_state):#Manejo de la barra lateral
+    def draw_sidebar(self, game_state, edit_mode):  # Manejo de la barra lateral
         # Fondo de la barra lateral
         sidebar_rect = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
@@ -90,12 +90,12 @@ class GameRenderer:
         # Colorear botones
         pygame.draw.rect(
             self.screen,
-            GameConfig.RED if game_state.selected_item == 'player' else GameConfig.WHITE,
+            GameConfig.RED if edit_mode == 'player' else GameConfig.WHITE,
             player_button
         )
         pygame.draw.rect(
             self.screen,
-            GameConfig.RED if game_state.selected_item == 'house' else GameConfig.WHITE,
+            GameConfig.RED if edit_mode == 'house' else GameConfig.WHITE,
             house_button
         )
 
@@ -124,14 +124,23 @@ class GameRenderer:
                                 200 + i * 30))
 
     def show_congratulations(self):
-        #Muestra mensaje de felicitación
+        # Crear un fondo semi-transparente
+        overlay = pygame.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(128)
+        self.screen.blit(overlay, (0,0))
+
+        # Mostrar mensaje de felicitación
         font = pygame.font.Font(None, 74)
-        text = font.render("¡Felicitaciones, ruta alcanzada!", True, GameConfig.GREEN)
+        text = font.render("¡Felicitaciones!", True, GameConfig.GREEN)
         text_rect = text.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,
-                                        GameConfig.SCREEN_HEIGHT // 2))
+                                    GameConfig.SCREEN_HEIGHT // 2 - 40))
         self.screen.blit(text, text_rect)
-        pygame.display.flip()
-        pygame.time.delay(2000)
+
+        subtext = font.render("¡Ruta alcanzada!", True, GameConfig.GREEN)
+        subtext_rect = subtext.get_rect(center=(GameConfig.SCREEN_WIDTH // 2,
+                                            GameConfig.SCREEN_HEIGHT // 2 + 40))
+        self.screen.blit(subtext, subtext_rect)
 
     def draw_path(self, astar_path=None, ucs_path=None):
         def draw_route(path, color):
