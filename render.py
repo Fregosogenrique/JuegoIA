@@ -123,7 +123,29 @@ class GameRenderer:
                 self.screen.blit(instruction,
                                (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
                                 200 + i * 30))
+        if self.game_state.game_started:
+            astar_cost_text = font.render(f"A* Cost: {self.game_state.astar_cost:.2f}", True, GameConfig.BLACK)
+            ucs_cost_text = font.render(f"UCS Cost: {self.game_state.ucs_cost:.2f}", True, GameConfig.BLACK)
+            Eficiente = (int(self.game_state.astar_cost),int(self.game_state.ucs_cost))
 
+            instructions = [
+                "La ruta A* tiene",
+                "un costo de: "+str(Eficiente[0]),
+                "La ruta UCS tiene",
+                "un costo de: "+str(Eficiente[1]),
+                "   posicionar",
+                "La ruta mas rapida",
+                "tiene un costo de: " + str(min(Eficiente)),
+                "Para desplazarte por ",
+                "las rutas presiona",
+                "A para A* y U para UCS"
+
+            ]
+            for i, text in enumerate(instructions):
+                instruction = font.render(text, True, GameConfig.BLACK)
+                self.screen.blit(instruction,
+                                 (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
+                                  200 + i * 30))
     def show_congratulations(self):
         # Crear un fondo semi-transparente
         overlay = pygame.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
@@ -174,26 +196,6 @@ class GameRenderer:
         # Agregar leyenda en la barra lateral
         font = pygame.font.Font(None, 24)
         legend_y = 400
-
-        # Mostrar costos en la barra lateral
-        cost_y = 300
-
-        # Mostrar costos
-        astar_cost_text = font.render(f"A* Cost: {self.game_state.astar_cost:.2f}", True, GameConfig.BLACK)
-        ucs_cost_text = font.render(f"UCS Cost: {self.game_state.ucs_cost:.2f}", True, GameConfig.BLACK)
-        self.screen.blit(astar_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y))
-        self.screen.blit(ucs_cost_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 30))
-
-        # Mostrar ruta seleccionada
-        current_path = "A*" if self.game_state.selected_path == 'astar' else "UCS"
-        selected_text = font.render(f"Ruta seleccionada: {current_path}", True, GameConfig.GREEN)
-        self.screen.blit(selected_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 60))
-
-        # Mostrar ruta más eficiente
-        best_algo = "A*" if self.game_state.astar_cost <= self.game_state.ucs_cost else "UCS"
-        best_path_text = font.render(f"Ruta más eficiente: {best_algo}", True, GameConfig.GREEN)
-        self.screen.blit(best_path_text, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, cost_y + 90))
-        
         # Leyenda para A*
         pygame.draw.line(
             self.screen,
