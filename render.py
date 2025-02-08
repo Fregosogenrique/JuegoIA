@@ -153,10 +153,10 @@ class GameRenderer:
 
     def show_congratulations(self):
         """Muestra la pantalla de felicitación al completar una ruta"""
-        # Overlay semitransparente
+        # Crear overlay semitransparente
         overlay = pygame.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
         overlay.fill((0, 0, 0))
-        overlay.set_alpha(128)
+        overlay.set_alpha(100)  # Más transparente para ver mejor el fondo
         self.screen.blit(overlay, (0, 0))
 
         # Mensajes de felicitación
@@ -173,6 +173,8 @@ class GameRenderer:
                         GameConfig.SCREEN_HEIGHT // 2 + y_offset)
             )
             self.screen.blit(rendered_text, text_rect)
+
+        pygame.display.flip()
 
     def draw_path(self, astar_path=None, ucs_path=None):
         """

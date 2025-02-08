@@ -173,29 +173,30 @@ class Game:
     def run(self):
         """Bucle principal del juego"""
         while True:
-            self.renderer.screen.fill(GameConfig.BLACK)
-            self._handle_victory_state()
-            self._update_display()
+            if self.game_state.victory:
+                self._handle_victory_state()
+            else:
+                self.renderer.screen.fill(GameConfig.BLACK)
+                self._update_display()
             self._process_events()
             pygame.time.delay(GameConfig.GAME_SPEED)
 
     def _handle_victory_state(self):
         """Maneja el estado de victoria y la transición"""
-        if self.game_state.victory:
-            self._draw_victory_state()
-            if self.game_state.victory_timer < 30:
-                self.game_state.victory_timer += 1
-                pygame.time.delay(30)
-            else:
-                self.reset_game()
+        if self.game_state.victory_timer == 0:
+            # Dibuja primero el estado actual del juego
+            self.renderer.draw_grid()
+            self.renderer.draw_game_elements()
+            self.renderer.draw_sidebar(self.edit_mode)
+            # Superpone el mensaje de felicitaciones
+            self.renderer.show_congratulations()
 
-    def _draw_victory_state(self):
-        """Dibuja la pantalla de victoria"""
-        self.renderer.draw_grid()
-        self.renderer.draw_game_elements()
-        self.renderer.draw_sidebar(self.edit_mode)
-        self.renderer.show_congratulations()
-        pygame.display.flip()
+        if self.game_state.victory_timer < 30:
+            self.game_state.victory_timer += 1
+            pygame.time.delay(100)
+        else:
+            self.game_state.victory = False
+            self.reset_game()
 
     def _update_display(self):
         """Actualiza todos los elementos visuales del juego"""
@@ -214,10 +215,10 @@ class Game:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
+            elif not self.game_state.victory and event.type == pygame.MOUSEBUTTONDOWN:
                 self.handle_mouse_click(event.pos)
-            elif event.type == pygame.KEYDOWN:
+            elif not self.game_state.victory and event.type == pygame.KEYDOWN:
                 self.handle_keyboard(event.key)
 
-        if self.game_state.game_started and self.current_path:
+        if not self.game_state.victory and self.game_state.game_started and self.current_path:
             self.update_player_movement()
