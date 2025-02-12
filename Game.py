@@ -31,7 +31,7 @@ class GameState:
         self.obstacles.clear()
         positions = {(x, y) for x in range(GameConfig.GRID_WIDTH)
                      for y in range(GameConfig.GRID_HEIGHT)} - {self.player_pos, self.house_pos}
-        self.obstacles = set(random.sample(list(positions), 150))
+        self.obstacles = set(random.sample(list(positions), 300))
 
 
 class Game:
