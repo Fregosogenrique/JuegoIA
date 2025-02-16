@@ -4,18 +4,18 @@ from config import GameConfig
 
 class GameRenderer:
     """
-    Clase encargada de renderizar todos los elementos visuales del juego.
-    Maneja la ventana principal, elementos gráficos y la interfaz de usuario.
+    Esta clase se encarga de dibujar todo en pantalla.
+    La uso para manejar la parte visual del juego.
     """
 
     def __init__(self, game_state):
-        # Inicialización de la ventana del juego
         self.game_state = game_state
+        # Creo la ventana del juego
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH,
                                                GameConfig.SCREEN_HEIGHT))
         pygame.display.set_caption("Fregoso Gutierrez IA25A")
 
-        # Carga y escalado de imágenes del jugador y la casa
+        # Cargo y ajusto el tamaño de las imágenes
         self.player_image = pygame.transform.scale(
             pygame.image.load(GameConfig.PLAYER_IMAGE),
             (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE)
@@ -24,12 +24,15 @@ class GameRenderer:
             pygame.image.load(GameConfig.HOUSE_IMAGE),
             (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE)
         )
+        # Guardo los rectángulos de los botones para detectar clicks
+        self.button_rects = {}
+
+    def get_button_rects(self):
+        """Devuelve el diccionario de rectángulos de botones"""
+        return self.button_rects
 
     def draw_grid(self):
-        """
-        Dibuja la cuadrícula del juego, creando una matriz visual
-        donde se moverá el jugador.
-        """
+        # Dibujo el tablero cuadrado por cuadrado
         for x in range(0, GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
                        GameConfig.SQUARE_SIZE):
             for y in range(0, GameConfig.SCREEN_HEIGHT, GameConfig.SQUARE_SIZE):
@@ -41,13 +44,7 @@ class GameRenderer:
                 )
 
     def draw_game_elements(self):
-        """
-        Dibuja los elementos principales del juego:
-        - Obstáculos (bloques grises)
-        - Jugador (imagen cargada)
-        - Casa (imagen cargada)
-        """
-        # Dibuja obstáculos
+        # Primero dibujo los obstáculos
         for obs in self.game_state.obstacles:
             pygame.draw.rect(
                 self.screen,
@@ -60,7 +57,7 @@ class GameRenderer:
                 )
             )
 
-        # Posiciona jugador y casa usando sus imágenes
+        # Pongo el jugador y la casa en su lugar
         self.screen.blit(
             self.player_image,
             (self.game_state.player_pos[0] * GameConfig.SQUARE_SIZE,
@@ -72,13 +69,36 @@ class GameRenderer:
              self.game_state.house_pos[1] * GameConfig.SQUARE_SIZE)
         )
 
-    def draw_sidebar(self, edit_mode):
-        """
-        Dibuja la barra lateral con controles e información:
-        - Botones de configuración
-        - Instrucciones del juego
-        - Información de costos de rutas
-        """
+    def _draw_separator(self, y_pos, text=None):
+        # Dibujo una línea para separar las secciones del menú
+        sidebar_x = GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE
+        separator_width = GameConfig.SIDEBAR_WIDTH - 20
+
+        # Dibuja la línea
+        pygame.draw.line(
+            self.screen,
+            GameConfig.BLACK,
+            (sidebar_x + 10, y_pos),
+            (sidebar_x + separator_width + 10, y_pos),
+            2
+        )
+
+        # Si hay texto, dibújalo centrado sobre la línea
+        if text:
+            font = pygame.font.Font(None, 24)
+            text_surface = font.render(text, True, GameConfig.BLACK)
+            text_rect = text_surface.get_rect(
+                centerx=sidebar_x + GameConfig.SIDEBAR_WIDTH // 2,
+                bottom=y_pos - 5
+            )
+            # Dibuja un pequeño rectángulo de fondo
+            padding = 5
+            bg_rect = text_rect.inflate(padding * 2, padding * 2)
+            pygame.draw.rect(self.screen, GameConfig.GRAY, bg_rect)
+            self.screen.blit(text_surface, text_rect)
+
+    def draw_sidebar(self, edit_mode, is_running, selected_path):
+        # Dibujo el panel lateral con todos los controles
         # Fondo de la barra lateral
         sidebar_rect = pygame.Rect(
             GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
@@ -88,82 +108,168 @@ class GameRenderer:
         )
         pygame.draw.rect(self.screen, GameConfig.GRAY, sidebar_rect)
 
-        font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(None, 28)  # Fuente más grande
+        y_offset = 20  # Espacio inicial desde arriba
 
-        # Título y botones
-        title = font.render("Configuración Inicial", True, GameConfig.BLACK)
-        self.screen.blit(title, (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10, 20))
+        # Título
+        title = font.render("Panel de Control", True, GameConfig.BLACK)
+        title_rect = title.get_rect(
+            centerx=sidebar_rect.centerx,
+            top=y_offset
+        )
+        self.screen.blit(title, title_rect)
 
-        # Botones de posicionamiento
-        buttons = [
-            ('player', "Posición Jugador", 60),
-            ('house', "Posición Casa", 120)
+        y_offset = 20
+        current_y = y_offset
+
+        # Título con más espacio
+        title = font.render("Panel de Control", True, GameConfig.BLACK)
+        title_rect = title.get_rect(
+            centerx=sidebar_rect.centerx,
+            top=current_y
+        )
+        self.screen.blit(title, title_rect)
+        current_y += 50  # Aumentado de 40 a 70 para más separación
+
+        # Sección de Edición
+        self._draw_separator(current_y, "EDICIÓN")
+        current_y += 30
+        edit_buttons = [
+            ('edit', "Modo Edición", current_y),
+            ('player', "Posición Jugador", current_y + 60),
+            ('house', "Posición Casa", current_y + 120),
         ]
 
-        for button_id, text, y_pos in buttons:
+        # Sección de Rutas con más espacio
+        current_y += 160
+        self._draw_separator(current_y, "RUTAS")
+        current_y += 30
+        route_buttons = [
+            ('astar', "Ruta A*", current_y),
+            ('ucs', "Ruta UCS", current_y + 60),
+        ]
+
+        # Sección de Control con más espacio
+        current_y += 140
+        self._draw_separator(current_y, "CONTROL")
+        current_y += 30
+        control_buttons = [
+            ('start', "Iniciar/Pausar", current_y),
+        ]
+
+        # Limpiar los rectángulos de botones anteriores
+        self.button_rects.clear()
+
+        # Dibujar todos los botones con mejor feedback visual
+        for button_id, text, y_pos in (edit_buttons + route_buttons + control_buttons):
+            # Todos los botones tendrán el mismo tamaño
             button_rect = pygame.Rect(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
+                sidebar_rect.left + 10,
                 y_pos,
-                180,
-                40
+                GameConfig.SIDEBAR_WIDTH - 20,
+                40  # Altura fija para todos los botones
             )
-            pygame.draw.rect(
-                self.screen,
-                GameConfig.RED if edit_mode == button_id else GameConfig.WHITE,
-                button_rect
-            )
-            button_text = font.render(text, True, GameConfig.BLACK)
-            self.screen.blit(button_text, (button_rect.x + 10, button_rect.y + 10))
 
-        # Muestra instrucciones según el estado del juego
-        instructions = self._get_instructions() if not self.game_state.game_started else \
-            self._get_game_status()
+            # Guardar el rectángulo del botón
+            self.button_rects[button_id] = button_rect
 
+            # Color del botón según estado con mejor contraste
+            if button_id in ['astar', 'ucs']:
+                color = (100, 200, 100) if selected_path == button_id else GameConfig.BUTTON_INACTIVE
+            elif button_id in ['edit', 'player', 'house']:
+                color = (100, 200, 100) if button_id == edit_mode else GameConfig.BUTTON_INACTIVE
+            elif button_id == 'start':
+                if is_running:
+                    color = (200, 50, 50)  # Rojo más brillante
+                    text = "PAUSAR"
+                else:
+                    color = (100, 180, 100)  # Verde más suave
+                    text = "INICIAR" if not self.game_state.game_started else "CONTINUAR"
+            else:
+                color = GameConfig.BUTTON_INACTIVE
+
+            # Efecto hover y dibujo del botón
+            mouse_pos = pygame.mouse.get_pos()
+            if button_rect.collidepoint(mouse_pos):
+                color = tuple(min(c + 40, 255) for c in color)
+                pygame.draw.rect(self.screen, (255, 255, 255), button_rect.inflate(4, 4), border_radius=5)
+
+            # Dibujar el botón
+            pygame.draw.rect(self.screen, (30, 30, 30), button_rect.inflate(2, 2), border_radius=5)
+            pygame.draw.rect(self.screen, color, button_rect, border_radius=5)
+
+            # Texto del botón
+            font_size = 32 if button_id == 'start' else 28
+            button_font = pygame.font.Font(None, font_size)
+            button_text = button_font.render(text, True, GameConfig.BUTTON_TEXT)
+            text_rect = button_text.get_rect(center=button_rect.center)
+            self.screen.blit(button_text, text_rect)
+
+        # Sección de Información con más espacio
+        current_y += 80
+        self._draw_separator(current_y, "INFORMACIÓN")
+        current_y += 20
+
+        # Información del juego
+        if not self.game_state.game_started:
+            instructions = self._get_instructions()
+        else:
+            instructions = self._get_game_status()
+
+        # Dibuja las instrucciones o estado del juego
+        font_small = pygame.font.Font(None, 24)  # Fuente más pequeña para instrucciones
         for i, text in enumerate(instructions):
-            instruction = font.render(text, True, GameConfig.BLACK)
-            self.screen.blit(instruction,
-                             (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 10,
-                              200 + i * 30))
+            instruction = font_small.render(text, True, GameConfig.BLACK)
+            text_rect = instruction.get_rect(
+                left=sidebar_rect.left + 15,
+                top=current_y + i * 25
+            )
+            self.screen.blit(instruction, text_rect)
 
     def _get_instructions(self):
-        """Retorna las instrucciones iniciales del juego"""
+        # Instrucciones básicas para el usuario
         return [
-            "1. Selecciona un elemento",
-            "2. Haz clic en la cuadrícula",
-            "   para posicionar",
-            "3. Presiona una tecla",
-            "   para iniciar"
+            "Para jugar:",
+            "• Click izq: Quitar cosas",
+            "• Click der: Poner cosas",
         ]
 
     def _get_game_status(self):
-        """Retorna el estado actual del juego y costos de rutas"""
+        # Muestro info sobre las rutas disponibles
         costs = (int(self.game_state.astar_cost), int(self.game_state.ucs_cost))
-        return [
-            "La ruta A* tiene",
-            f"un costo de: {costs[0]}",
-            "La ruta UCS tiene",
-            f"un costo de: {costs[1]}",
-            "La ruta mas rapida",
-            f"tiene un costo de: {min(costs)}",
-            "Para desplazarte por",
-            "las rutas presiona",
-            "A para A* (Linea Verde",
-            "U para UCS (Linea Azul)"
-        ]
+        if not self.game_state.game_started:
+            return [
+                "Tengo estas rutas:",
+                f"A*: {costs[0]} pasos",
+                f"UCS: {costs[1]} pasos",
+                "",
+                f"La mejor ruta toma: {min(costs)} pasos",
+                "",
+                "Usa el modo Edición",
+                "si quieres cambiar el mapa"
+            ]
+        else:
+            return [
+                "Estado actual:",
+                f"A*: {costs[0]} pasos",
+                f"UCS: {costs[1]} pasos",
+                "",
+                f"Mejor ruta: {min(costs)} pasos",
+            ]
 
     def show_congratulations(self):
-        """Muestra la pantalla de felicitación al completar una ruta"""
-        # Crear overlay semitransparente
+        # Muestro mensaje cuando gana
+        # Crear overlay semitransparente verde oscuro
         overlay = pygame.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
-        overlay.fill((0, 0, 0))
-        overlay.set_alpha(100)  # Más transparente para ver mejor el fondo
+        overlay.fill((0, 50, 0))  # Verde oscuro
+        overlay.set_alpha(160)
         self.screen.blit(overlay, (0, 0))
 
         # Mensajes de felicitación
         font = pygame.font.Font(None, 74)
         messages = [
-            ("¡Felicitaciones!", -40),
-            ("¡Ruta alcanzada!", 40)
+            ("¡Felicitaciones!", -60),
+            ("¡Ruta completada!", 0),
         ]
 
         for text, y_offset in messages:
@@ -176,20 +282,42 @@ class GameRenderer:
 
         pygame.display.flip()
 
-    def draw_path(self, astar_path=None, ucs_path=None):
-        """
-        Dibuja las rutas calculadas por A* y UCS.
-        Incluye una leyenda para identificar cada ruta.
-        """
+    def show_no_path_error(self):
+        # Aviso que no encontré camino posible
+        # Crear overlay semitransparente rojo oscuro
+        overlay = pygame.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
+        overlay.fill((50, 0, 0))  # Rojo oscuro
+        overlay.set_alpha(160)  # Más opaco que el mensaje de victoria
+        self.screen.blit(overlay, (0, 0))
 
+        # Mensajes de error
+        font = pygame.font.Font(None, 74)
+        messages = [
+            ("¡No hay ruta disponible!", -60),
+            ("Modifica los obstáculos", 0),
+            ("o reposiciona elementos", 60)
+        ]
+
+        for text, y_offset in messages:
+            rendered_text = font.render(text, True, GameConfig.RED)
+            text_rect = rendered_text.get_rect(
+                center=(GameConfig.SCREEN_WIDTH // 2,
+                        GameConfig.SCREEN_HEIGHT // 2 + y_offset)
+            )
+            self.screen.blit(rendered_text, text_rect)
+
+        pygame.display.flip()
+
+    def draw_path(self, astar_path=None, ucs_path=None):
+        # Dibujo las líneas que muestran las rutas
         def draw_route(path, color):
-            """Dibuja una ruta específica con el color indicado"""
+            # Dibujo una ruta conectando los puntos
             if path:
                 for i in range(len(path) - 1):
                     start_pos = path[i]
                     end_pos = path[i + 1]
 
-                    # Calcula los puntos centrales de cada cuadro
+                    # Centro la línea en cada cuadro
                     start_pixel = (
                         start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
                         start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
@@ -201,6 +329,6 @@ class GameRenderer:
 
                     pygame.draw.line(self.screen, color, start_pixel, end_pixel, 2)
 
-        # Dibuja ambas rutas
-        draw_route(astar_path, (0, 255, 0))  # Verde para A*
-        draw_route(ucs_path, (0, 0, 255))  # Azul para UCS
+        # Verde para A* y azul para UCS
+        draw_route(astar_path, (0, 255, 0))
+        draw_route(ucs_path, (0, 0, 255))

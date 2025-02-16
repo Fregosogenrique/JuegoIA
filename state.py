@@ -1,4 +1,5 @@
 #De esta forma se manejan los estados del juego
+#De esta forma se manejan los estados del juego
 import random
 import pygame
 from config import GameConfig

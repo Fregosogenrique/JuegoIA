@@ -1,16 +1,14 @@
 #Fregosogenrique
-# Implementación del algoritmo A* (A-Star)
+# Aquí implemento los algoritmos de búsqueda que uso para encontrar caminos
+
 class AStar:
     def __init__(self, width, height):
-        # Inicializa el espacio de búsqueda con dimensiones específicas
+        # Necesito saber el tamaño del mapa para no salirme
         self.width = width
         self.height = height
 
     def get_neighbors(self, pos, obstacles):
-        """
-        Obtiene las posiciones vecinas válidas (arriba, derecha, abajo, izquierda)
-        para una posición dada, excluyendo obstáculos y límites del mapa.
-        """
+        # Busco las casillas a las que puedo moverme
         x, y = pos
         neighbors = []
         # Movimientos posibles: derecha, abajo, izquierda, arriba
@@ -24,21 +22,11 @@ class AStar:
         return neighbors
 
     def manhattan_distance(self, pos1, pos2):
-        """
-        Calcula la distancia Manhattan entre dos puntos.
-        Esta es la heurística que hace que A* sea más eficiente que UCS.
-        """
+        # Calculo qué tan lejos estoy de la meta
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
 
     def find_path(self, start, goal, obstacles):
-        """
-        Encuentra el camino más corto entre start y goal usando A*.
-
-        A* combina:
-        - g_score: costo real desde el inicio hasta el nodo actual
-        - h_score: estimación heurística desde el nodo actual hasta la meta
-        - f_score: suma de g_score y h_score
-        """
+        # Busco el camino usando A* - es más rápido que UCS
         start = tuple(start)
         goal = tuple(goal)
         open_set = {start}  # Conjunto de nodos por explorar
@@ -87,10 +75,9 @@ class AStar:
         return None  # No hay camino posible
 
 
-# Implementación del algoritmo UCS (Uniform Cost Search)
 class UCS:
     def __init__(self, width, height):
-        # Inicializa el espacio de búsqueda con dimensiones específicas
+        # Similar a A*, pero sin la parte inteligente
         self.width = width
         self.height = height
 
@@ -110,14 +97,7 @@ class UCS:
         return neighbors
 
     def find_path(self, start, goal, obstacles):
-        """
-        Encuentra el camino más corto entre start y goal usando UCS.
-
-        UCS es similar a A* pero:
-        - Solo usa g_score (costo real)
-        - No usa heurística (h_score)
-        - Por lo tanto, explora más nodos que A* pero garantiza el camino óptimo
-        """
+        # Busco el camino revisando todo - más lento pero seguro
         start = tuple(start)
         goal = tuple(goal)
         open_set = {start}
