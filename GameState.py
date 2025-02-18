@@ -1,7 +1,7 @@
 class GameState:
     def __init__(self):
         self.player_pos = (1, 1)
-        self.house_pos = (8, 8)
+        self.house_pos = (8, 38)
         self.obstacles = set()
         self.game_started = False
         self.victory = False
