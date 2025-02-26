@@ -200,61 +200,62 @@ class Game:
         self.game_state.game_started = False
         
         # Visualize the movement matrix if RandomRoute was used
-        if self.selected_path == 'ucs':
+        if self.selected_path == 'random':
             self.visualize_movement_matrix()
     
-def visualize_movement_matrix(self):
-    """Visualiza la matriz de movimientos de RandomRoute"""
-    try:
-        # Get the movement matrix from RandomRoute
-        if hasattr(self.ucs, 'grid'):
-            # Create a figure with subplots for each direction
-            fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-            fig.suptitle('Movement Matrix Visualization', fontsize=16)
-            
-            # Direction names
-            directions = ['Right', 'Up', 'Left', 'Down']
-            
-            # Plot each direction as a heatmap
-            for i in range(4):
-                row, col = i // 2, i % 2
-                # Extract data for this direction
-                direction_data = np.array([[self.ucs.grid[x][y][i] for y in range(GameConfig.GRID_HEIGHT)] 
-                                        for x in range(GameConfig.GRID_WIDTH)])
+    def visualize_movement_matrix(self):
+        """Visualiza la matriz de movimientos de RandomRoute"""
+        try:
+            # Get the movement matrix from RandomRoute
+            if hasattr(self.ucs, 'grid'):
+                # Create a figure with subplots for each direction
+                fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+                fig.suptitle('Movement Matrix Visualization', fontsize=16)
                 
-                # Create heatmap
-                im = axs[row, col].imshow(direction_data.T, cmap='hot', interpolation='nearest')
-                axs[row, col].set_title(f'Direction: {directions[i]}')
-                axs[row, col].set_xlabel('X position')
-                axs[row, col].set_ylabel('Y position')
+                # Direction names
+                directions = ['Right', 'Up', 'Left', 'Down']
                 
-                # Mark start and end points
-                start_x, start_y = self.game_state.player_pos
-                end_x, end_y = self.game_state.house_pos
-                axs[row, col].plot(start_x, start_y, 'go', markersize=8, label='Start')
-                axs[row, col].plot(end_x, end_y, 'bo', markersize=8, label='Goal')
+                # Plot each direction as a heatmap
+                for i in range(4):
+                    row, col = i // 2, i % 2
+                    # Extract data for this direction
+                    direction_data = np.array([[self.ucs.grid[x][y][i] for y in range(GameConfig.GRID_HEIGHT)] 
+                                            for x in range(GameConfig.GRID_WIDTH)])
+                    
+                    # Create heatmap
+                    im = axs[row, col].imshow(direction_data.T, cmap='hot', interpolation='nearest')
+                    axs[row, col].set_title(f'Direction: {directions[i]}')
+                    axs[row, col].set_xlabel('X position')
+                    axs[row, col].set_ylabel('Y position')
+                    
+                    # Mark start and end points
+                    start_x, start_y = self.game_state.player_pos
+                    end_x, end_y = self.game_state.house_pos
+                    axs[row, col].plot(start_x, start_y, 'go', markersize=8, label='Start')
+                    axs[row, col].plot(end_x, end_y, 'bo', markersize=8, label='Goal')
+                    
+                    # Add colorbar
+                    plt.colorbar(im, ax=axs[row, col])
                 
-                # Add colorbar
-                plt.colorbar(im, ax=axs[row, col])
-            
-            # Mark the final path if available
-            if self.ucs_path:
-                path_x = [point[0] for point in self.ucs_path]
-                path_y = [point[1] for point in self.ucs_path]
-                for ax in axs.flat:
-                    ax.plot(path_x, path_y, 'w-', linewidth=2, alpha=0.7, label='Path')
+                # Mark the final path if available
+                if self.ucs_path:
+                    path_x = [point[0] for point in self.ucs_path]
+                    path_y = [point[1] for point in self.ucs_path]
+                    for ax in axs.flat:
+                        ax.plot(path_x, path_y, 'w-', linewidth=2, alpha=0.7, label='Path')
+                    
+                # Add a common legend
+                handles, labels = axs[0, 0].get_legend_handles_labels()
+                fig.legend(handles, labels, loc='lower center', ncol=3, fontsize=10)
                 
-            # Add a common legend
-            handles, labels = axs[0, 0].get_legend_handles_labels()
-            fig.legend(handles, labels, loc='lower center', ncol=3, fontsize=10)
-            
-            # Adjust layout and show the plot
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            plt.show(block=False)  # Non-blocking to allow game to continue
-        else:
-            print("No movement matrix available to visualize")
-    except Exception as e:
-        print(f"Error visualizing movement matrix: {e}")
+                # Adjust layout and show the plot
+                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+                plt.show(block=False)  # Non-blocking to allow game to continue
+            else:
+                print("No movement matrix available to visualize")
+        except Exception as e:
+            print("Algo Salio mal")
+        
     def reset_game(self):
         """Reinicia el juego a su estado inicial"""
         self.game_state.reset()
@@ -262,7 +263,7 @@ def visualize_movement_matrix(self):
         self.game_state.generate_obstacles()
         self.calculate_path()
         pygame.time.wait(GameConfig.RESET_DELAY)
-
+        
     def _toggle_game(self):
         """Alterna entre iniciar/pausar el juego"""
         if not self.game_state.game_started:
@@ -272,9 +273,7 @@ def visualize_movement_matrix(self):
             self.game_state.game_started = True
             self.is_running = True
             self.calculate_path()
-        else:
-            self.is_running = not self.is_running
-
+    
     def run(self):
         """Bucle principal del juego"""
         running = True
