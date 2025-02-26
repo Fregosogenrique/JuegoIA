@@ -1,5 +1,6 @@
 #Fregosogenrique
 # Aquí implemento los algoritmos de búsqueda que uso para encontrar caminos
+import numpy as np
 
 class AStar:
     def __init__(self, width, height):
@@ -143,8 +144,36 @@ class UCS:
 
         return None  # No hay camino posible
     """
-class RandomRoute:
+class RandomRoute(self, width, height):
     print("Hola")
+    #conversion del grid a una matriz de arreglos
+
+    # Grid original (lista de listas)
+    grid = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+    ]
+
+    # Convertir cada elemento en un array de NumPy
+    matriz_arreglos = np.array([[np.array([cell]) for cell in row] for row in grid], dtype=object)
+
+    # Imprimir resultado
+    print(matriz_arreglos)
+    print(type(matriz_arreglos[0, 0]))  # Verificar tipo de celda
+    def get_neighbors(self, pos, obstacles):
+        # Busco las casillas a las que puedo moverme
+        x, y = pos
+        neighbors = []
+        # Movimientos posibles: derecha, abajo, izquierda, arriba
+        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            new_x, new_y = x + dx, y + dy
+            # Verifica que el vecino esté dentro de los límites y no sea un obstáculo
+            if (0 <= new_x < self.width and
+                    0 <= new_y < self.height and
+                    (new_x, new_y) not in obstacles):
+                neighbors.append((new_x, new_y))
+        return neighbors
     def learning_path:
 
         return None  # No hay camino posible

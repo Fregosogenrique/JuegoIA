@@ -19,7 +19,14 @@ class GameState:
 
     def generate_obstacles(self):
         import random
+        import numpy as np
         from ADB import AStar
+        # Dimensiones de la matriz
+        filas, columnas = 40, 30
+        valores_por_celda = 4  # Cada celda contiene un arreglo de 4 valores
+
+        # Crear la matriz con arreglos inicializados en [0, 0, 0, 0]
+        matriz = np.array([[[0] * valores_por_celda for _ in range(columnas)] for _ in range(filas)], dtype=object)
 
         # Generar todas las posiciones posibles
         all_positions = {(x, y) for x in range(10) for y in range(10)}
