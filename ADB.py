@@ -144,36 +144,97 @@ class UCS:
 
         return None  # No hay camino posible
     """
-class RandomRoute(self, width, height):
-    print("Hola")
-    #conversion del grid a una matriz de arreglos
-
-    # Grid original (lista de listas)
-    grid = [
-        [1, 2, 3],
-        [4, 5, 6],
-        [7, 8, 9]
-    ]
-
-    # Convertir cada elemento en un array de NumPy
-    matriz_arreglos = np.array([[np.array([cell]) for cell in row] for row in grid], dtype=object)
-
-    # Imprimir resultado
-    print(matriz_arreglos)
-    print(type(matriz_arreglos[0, 0]))  # Verificar tipo de celda
+class RandomRoute:
+    def __init__(self, width=40, height=30):
+        # La implementación está diseñada para un grid de 40x30,
+        # pero se permite configurar otros tamaños
+        self.width = width
+        self.height = height
+        
+        # Inicializar una matriz de arreglos para contar las direcciones
+        # Cada celda tiene un array de 4 enteros: [derecha, abajo, izquierda, arriba]
+        # que corresponden a las direcciones [(0,1), (1,0), (0,-1), (-1,0)]
+        self.grid = np.zeros((height, width, 4), dtype=int)
+        
+        # Mapeo de direcciones a índices en el array
+        # Mapeo de direcciones a índices en el array
+        self.dir_indices = {
+            (0, 1): 0,  # derecha
+            (-1, 0): 1,  # arriba
+            (0, -1): 2, # izquierda
+            (1, 0): 3  # abajo
+        }
+        # Direcciones de movimiento: derecha, abajo, izquierda, arriba
+        self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
     def get_neighbors(self, pos, obstacles):
         # Busco las casillas a las que puedo moverme
         x, y = pos
         neighbors = []
         # Movimientos posibles: derecha, abajo, izquierda, arriba
-        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+        for dx, dy in self.directions:
             new_x, new_y = x + dx, y + dy
             # Verifica que el vecino esté dentro de los límites y no sea un obstáculo
             if (0 <= new_x < self.width and
                     0 <= new_y < self.height and
                     (new_x, new_y) not in obstacles):
-                neighbors.append((new_x, new_y))
+                neighbors.append(((dx, dy), (new_x, new_y)))
         return neighbors
-    def learning_path:
-
-        return None  # No hay camino posible
+    def find_path(self, start, goal, obstacles):
+        """
+        Busca un camino desde start hasta goal moviéndose con base en los valores
+        registrados en cada celda, priorizando las direcciones con más visitas.
+        """
+        start = tuple(start)
+        goal = tuple(goal)
+        current = start
+        path = [current]
+        max_steps = self.width * self.height * 4  # Límite para evitar bucles infinitos
+        steps = 0
+        
+        while current != goal and steps < max_steps:
+            # Obtener vecinos válidos con sus direcciones
+            valid_neighbors = self.get_neighbors(current, obstacles)
+            
+            if not valid_neighbors:
+                # No hay movimientos posibles, retroceder o terminar
+                return None
+            
+            # Extraer las direcciones y sus posiciones
+            directions = []
+            positions = []
+            for dir_tuple, pos in valid_neighbors:
+                directions.append(dir_tuple)
+                positions.append(pos)
+            
+            # Obtener los contadores para cada dirección disponible
+            counts = []
+            for direction in directions:
+                dir_idx = self.dir_indices[direction]
+                counts.append(self.grid[current[0], current[1], dir_idx])
+            
+            # Si todos los contadores son 0, elegir al azar
+            if sum(counts) == 0:
+                selected_idx = np.random.randint(0, len(valid_neighbors))
+            else:
+                # Seleccionar con mayor probabilidad las direcciones con mayores contadores
+                counts_array = np.array(counts)
+                # Asegurar que al menos sean probabilidades de 1 para evitar división por 0
+                probabilities = counts_array + 1
+                probabilities = probabilities / probabilities.sum()
+                selected_idx = np.random.choice(len(valid_neighbors), p=probabilities)
+            
+            direction = directions[selected_idx]
+            next_pos = positions[selected_idx]
+            
+            # Incrementar el contador para la dirección tomada
+            dir_idx = self.dir_indices[direction]
+            self.grid[current[0], current[1], dir_idx] += 1
+            
+            # Moverse a la siguiente posición
+            current = next_pos
+            path.append(current)
+            steps += 1
+        
+        if current == goal:
+            return path
+        return None  # No se encontró un camino dentro del límite de pasos
