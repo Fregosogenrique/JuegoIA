@@ -84,9 +84,9 @@ class UCS:
 
     def get_neighbors(self, pos, obstacles):
         """
-        #Función idéntica a la de A*. Obtiene las posiciones vecinas válidas
-        #excluyendo obstáculos y posiciones fuera de los límites.
-        """
+#Función idéntica a la de A*. Obtiene las posiciones vecinas válidas
+#excluyendo obstáculos y posiciones fuera de los límites.
+"""
         x, y = pos
         neighbors = []
         for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
