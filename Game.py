@@ -3,7 +3,7 @@ import pygame
 from config import GameConfig
 from render import GameRenderer
 import random
-from ADB import AStar, UCS
+from ADB import AStar, RandomRoute
 
 
 class GameState:
@@ -43,7 +43,7 @@ class Game:
             self.renderer = GameRenderer(self.game_state)
             # Creo los buscadores de rutas
             self.astar = AStar(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
-            self.ucs = UCS(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
+            self.ucs = RandomRoute(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
             self.initialize_game_variables()
             self.is_running = False
             self.last_click_time = 0  # Para prevenir doble clic

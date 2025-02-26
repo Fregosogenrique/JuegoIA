@@ -135,7 +135,7 @@ class GameRenderer:
         self._draw_separator(current_y, "EDICIÓN")
         current_y += 30
         edit_buttons = [
-            ('edit', "Modo Edición", current_y),
+             ('edit', "Modo Edición", current_y),
             ('player', "Posición Jugador", current_y + 60),
             ('house', "Posición Casa", current_y + 120),
         ]
@@ -146,7 +146,7 @@ class GameRenderer:
         current_y += 30
         route_buttons = [
             ('astar', "Ruta A*", current_y),
-            ('ucs', "Ruta UCS", current_y + 60),
+            ('random', "Aprendizaje", current_y + 60),
         ]
 
         # Sección de Control con más espacio
@@ -174,7 +174,7 @@ class GameRenderer:
             self.button_rects[button_id] = button_rect
 
             # Color del botón según estado con mejor contraste
-            if button_id in ['astar', 'ucs']:
+            if button_id in ['astar', 'random']:
                 color = (100, 200, 100) if selected_path == button_id else GameConfig.BUTTON_INACTIVE
             elif button_id in ['edit', 'player', 'house']:
                 color = (100, 200, 100) if button_id == edit_mode else GameConfig.BUTTON_INACTIVE
@@ -241,7 +241,7 @@ class GameRenderer:
             return [
                 "Tengo estas rutas:",
                 f"A*: {costs[0]} pasos",
-                f"UCS: {costs[1]} pasos",
+                f"Aprendiendo: {costs[1]} pasos",
                 "",
                 f"La mejor ruta toma: {min(costs)} pasos",
                 "",
@@ -252,7 +252,7 @@ class GameRenderer:
             return [
                 "Estado actual:",
                 f"A*: {costs[0]} pasos",
-                f"UCS: {costs[1]} pasos",
+                f"Aprendiendo: {costs[1]} pasos",
                 "",
                 f"Mejor ruta: {min(costs)} pasos",
             ]

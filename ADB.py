@@ -74,7 +74,7 @@ class AStar:
 
         return None  # No hay camino posible
 
-
+"""
 class UCS:
     def __init__(self, width, height):
         # Similar a A*, pero sin la parte inteligente
@@ -83,8 +83,8 @@ class UCS:
 
     def get_neighbors(self, pos, obstacles):
         """
-        Función idéntica a la de A*. Obtiene las posiciones vecinas válidas
-        excluyendo obstáculos y posiciones fuera de los límites.
+        #Función idéntica a la de A*. Obtiene las posiciones vecinas válidas
+        #excluyendo obstáculos y posiciones fuera de los límites.
         """
         x, y = pos
         neighbors = []
@@ -140,5 +140,11 @@ class UCS:
                 # Actualiza los valores para el vecino
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g_score
+
+        return None  # No hay camino posible
+    """
+class RandomRoute:
+    print("Hola")
+    def learning_path:
 
         return None  # No hay camino posible
