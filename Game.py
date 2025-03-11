@@ -53,6 +53,10 @@ class Game:
             self.button_rects = {}  # Almacenará los rectángulos de los botones
             # Generar obstáculos iniciales
             self.game_state.generate_obstacles()
+            # Variables para las iteraciones visibles e invisibles
+            self.visible_iterations = 1
+            self.invisible_iterations = 0
+            self.is_learning_in_progress = False
         except Exception as e:
             print(f"Error al inicializar el juego: {e}")
             raise

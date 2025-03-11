@@ -14,6 +14,11 @@ class GameRenderer:
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH,
                                                GameConfig.SCREEN_HEIGHT))
         pygame.display.set_caption("Fregoso Gutierrez IA25A")
+        
+        # Variables para los campos de texto
+        self.visible_iterations = "1"
+        self.invisible_iterations = "0"
+        self.active_input = None  # Para seguimiento del campo activo
 
         # Cargo y ajusto el tamaño de las imágenes
         self.player_image = pygame.transform.scale(
@@ -148,9 +153,53 @@ class GameRenderer:
             ('astar', "Ruta A*", current_y),
             ('random', "Aprendizaje", current_y + 60),
         ]
+        
+        # Campos de texto para iteraciones visibles e invisibles
+        visible_label_y = current_y + 120
+        invisible_label_y = current_y + 160
+        
+        # Rectángulos para los campos de texto
+        self.visible_input_rect = pygame.Rect(
+            sidebar_rect.left + 90,
+            visible_label_y,
+            GameConfig.SIDEBAR_WIDTH - 100,
+            30
+        )
+        
+        self.invisible_input_rect = pygame.Rect(
+            sidebar_rect.left + 90,
+            invisible_label_y,
+            GameConfig.SIDEBAR_WIDTH - 100,
+            30
+        )
+        
+        # Dibujar etiquetas
+        font_small = pygame.font.Font(None, 24)
+        visible_label = font_small.render("Visible:", True, GameConfig.BLACK)
+        self.screen.blit(visible_label, (sidebar_rect.left + 15, visible_label_y + 5))
+        
+        invisible_label = font_small.render("Invisible:", True, GameConfig.BLACK)
+        self.screen.blit(invisible_label, (sidebar_rect.left + 15, invisible_label_y + 5))
+        
+        # Dibujar campos de entrada
+        # Campo Visible
+        color = GameConfig.BUTTON_INACTIVE
+        if self.active_input == 'visible':
+            color = GameConfig.BUTTON_ACTIVE
+        pygame.draw.rect(self.screen, color, self.visible_input_rect, border_radius=5)
+        visible_text = font_small.render(self.visible_iterations, True, GameConfig.BLACK)
+        self.screen.blit(visible_text, (self.visible_input_rect.x + 5, self.visible_input_rect.y + 5))
+        
+        # Campo Invisible
+        color = GameConfig.BUTTON_INACTIVE
+        if self.active_input == 'invisible':
+            color = GameConfig.BUTTON_ACTIVE
+        pygame.draw.rect(self.screen, color, self.invisible_input_rect, border_radius=5)
+        invisible_text = font_small.render(self.invisible_iterations, True, GameConfig.BLACK)
+        self.screen.blit(invisible_text, (self.invisible_input_rect.x + 5, self.invisible_input_rect.y + 5))
 
         # Sección de Control con más espacio
-        current_y += 140
+        current_y += 200  # Aumentado para dar espacio a los nuevos campos
         self._draw_separator(current_y, "CONTROL")
         current_y += 30
         control_buttons = [
@@ -307,6 +356,54 @@ class GameRenderer:
             self.screen.blit(rendered_text, text_rect)
 
         pygame.display.flip()
+
+    def handle_input_event(self, event):
+        """
+        Maneja eventos de entrada para los campos de texto
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Verificar si se hizo clic en alguno de los campos de texto
+            if self.visible_input_rect.collidepoint(event.pos):
+                self.active_input = 'visible'
+            elif self.invisible_input_rect.collidepoint(event.pos):
+                self.active_input = 'invisible'
+            else:
+                self.active_input = None
+
+        if event.type == pygame.KEYDOWN and self.active_input is not None:
+            if event.key == pygame.K_BACKSPACE:
+                # Borrar el último carácter
+                if self.active_input == 'visible':
+                    self.visible_iterations = self.visible_iterations[:-1]
+                else:
+                    self.invisible_iterations = self.invisible_iterations[:-1]
+            elif event.key == pygame.K_RETURN:
+                # Desactivar el campo al presionar Enter
+                self.active_input = None
+            elif event.unicode.isdigit():  # Solo permitir dígitos
+                # Agregar el carácter presionado al campo activo
+                if self.active_input == 'visible':
+                    self.visible_iterations += event.unicode
+                else:
+                    self.invisible_iterations += event.unicode
+
+    def get_visible_iterations(self):
+        """
+        Retorna el número de iteraciones visibles
+        """
+        try:
+            return int(self.visible_iterations)
+        except ValueError:
+            return 1  # Valor por defecto
+
+    def get_invisible_iterations(self):
+        """
+        Retorna el número de iteraciones invisibles
+        """
+        try:
+            return int(self.invisible_iterations)
+        except ValueError:
+            return 0  # Valor por defecto
 
     def draw_path(self, astar_path=None, ucs_path=None):
         # Dibujo las líneas que muestran las rutas

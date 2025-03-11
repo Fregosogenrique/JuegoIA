@@ -5,7 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4.3, presenta bugs de desarrollo">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ADB.py" beforeDir="false" afterPath="$PROJECT_DIR$/ADB.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/random_route_analysis.png" beforeDir="false" afterPath="$PROJECT_DIR$/random_route_analysis.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/render.py" beforeDir="false" afterPath="$PROJECT_DIR$/render.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -339,7 +343,23 @@
       <option name="project" value="LOCAL" />
       <updated>1741661690736</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="Version 2.4.3, presenta bugs de desarrollo">
+      <option name="closed" value="true" />
+      <created>1741662569635</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1741662569635</updated>
+    </task>
+    <task id="LOCAL-00034" summary="Version 2.4.3, presenta bugs de desarrollo">
+      <option name="closed" value="true" />
+      <created>1741662728567</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1741662728567</updated>
+    </task>
+    <option name="localTasksCounter" value="35" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
