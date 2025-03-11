@@ -1,37 +1,83 @@
+import pygame
+
+
 class GameConfig:
-    # Aquí guardo todos los números importantes del juego
+    # Tamaños de la cuadrícula y ventana
+    SQUARE_SIZE = 20  # Tamaño de cada cuadro
+    GRID_WIDTH = 40  # Ancho del grid
+    GRID_HEIGHT = 30  # Alto del grid
+    SIDEBAR_WIDTH = 200  # Ancho de la barra lateral
 
-    # Tamaños de la ventana y el tablero
-    GRID_WIDTH = 40
-    GRID_HEIGHT = 30
-    SQUARE_SIZE = 25
-    SIDEBAR_WIDTH = 200
+    # Dimensiones de la ventana
     SCREEN_WIDTH = GRID_WIDTH * SQUARE_SIZE + SIDEBAR_WIDTH
-    SCREEN_HEIGHT = max(GRID_HEIGHT * SQUARE_SIZE, 600)  # Asegura espacio suficiente
+    SCREEN_HEIGHT = GRID_HEIGHT * SQUARE_SIZE
 
-    # Gameplay
-    GAME_SPEED = 120  # Aumentado para movimiento más lento
+    # Velocidad del juego
+    GAME_SPEED = 60  # FPS
+    MOVE_DELAY = 100  # ms entre movimientos (normal)
+    HEADLESS_DELAY = 0  # ms entre movimientos (modo sin interfaz)
+    RESET_DELAY = 500
+    VICTORY_DURATION = 2000
 
-    # Colores que uso en el juego
-    WHITE = (74, 78, 105)  # Para la cuadrícula
-    BLACK = (26, 26, 46)  # Para el fondo
-    GREEN = (76, 175, 80)  # Para cuando ganas
-    GRAY = (154, 140, 152)  # Para los obstáculos
-
-    # Los demás colores se mantienen igual
-    RED = (255, 0, 0)
-    BLUE = (0, 0, 255)
-    BUTTON_ACTIVE = (100, 200, 100)
-    BUTTON_INACTIVE = (200, 200, 200)
-    BUTTON_TEXT = (0, 0, 0)
+    # Rangos de movimiento aleatorio
+    MOVE_UP_RANGE = (1, 5)
+    MOVE_RIGHT_RANGE = (6, 10)
+    MOVE_DOWN_RANGE = (11, 15)
+    MOVE_LEFT_RANGE = (16, 20)
 
     # Rutas de imágenes
     PLAYER_IMAGE = 'bomberman.png.webp'
     HOUSE_IMAGE = '27187.jpg.webp'
 
-    # Cuánto tiempo muestro los mensajes
-    VICTORY_TIME = 15  # Mensaje de victoria
-    ERROR_TIME = 25  # Mensaje de error
-    VICTORY_DELAY = 10  # Delay entre frames en victoria
-    ERROR_DELAY = 10  # Delay entre frames en error
-    RESET_DELAY = 10  # Delay al resetear el juego
+    # Configuración de juego
+    MOVE_DELAY = 100  # Milisegundos entre movimientos
+    SHOW_MOVEMENT_MATRIX = True  # Mostrar números de movimiento
+    HEADLESS_MODE = False  # Modo sin interfaz gráfica
+    USE_DECISION_TREE = True  # Usar árbol de decisiones con poda
+    OBSTACLE_PERCENTAGE = 20  # Porcentaje de obstáculos en el grid (0-100)
+
+    # Posiciones iniciales predefinidas
+    INITIAL_PLAYER_POS = (12, 10)  # Posición inicial del jugador (x, y)
+    INITIAL_HOUSE_POS = (25, 20)  # Posición inicial de la casa (x, y)
+
+    # Colores
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    RED = (255, 0, 0)
+    GREEN = (0, 255, 0)
+    BLUE = (0, 0, 255)
+    GRAY = (128, 128, 128)
+    DARK_GRAY = (64, 64, 64)
+    EGGSHELL = (240, 234, 214)
+    CYAN = (0, 255, 255)
+    YELLOW = (255, 255, 0)
+    ORANGE = (255, 165, 0)
+    PURPLE = (128, 0, 128)
+    PRUNED_PATH_COLOR = (0, 191, 255)  # DeepSkyBlue - Color más brillante para la ruta con poda
+
+    # Colores de mapa de calor
+    HEAT_COLORS = [
+        (255, 255, 0),  # Amarillo suave
+        (255, 200, 0),  # Naranja claro
+        (255, 150, 0),  # Naranja
+        (255, 100, 0),  # Naranja intenso
+        (255, 50, 0),  # Rojo-naranja
+        (255, 0, 0),  # Rojo
+        (200, 0, 0),  # Rojo oscuro
+        (150, 0, 0)  # Rojo muy oscuro
+    ]
+
+    # Colores de UI
+    SIDEBAR_BG = DARK_GRAY
+    GRID_BG = DARK_GRAY
+    GRID_COLOR = EGGSHELL
+    BUTTON_BG = (200, 200, 200)  # Gris claro para botones
+    BUTTON_HOVER = (230, 230, 230)  # Gris más claro para hover
+    BUTTON_ACTIVE = (100, 100, 220)  # Azul para botón activo
+    BUTTON_FOCUS = (0, 128, 255)  # Azul para focus
+    BUTTON_TEXT = BLACK
+    BUTTON_TEXT_ACTIVE = WHITE
+    OBSTACLE_COLOR = GRAY  # Color de obstáculos
+    PLAYER_COLOR = BLUE  # Color del jugador (fallback)
+    HOUSE_COLOR = GREEN  # Color de la casa (fallback)
+    PATH_COLOR = ORANGE  # Color de la ruta
