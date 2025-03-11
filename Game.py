@@ -23,8 +23,8 @@ class GameState:
         self.victory_timer = 0
         self.show_victory_message = False
         self.selected_path = 'astar'
-        self.astar_cost = float('inf')
-        self.ucs_cost = float('inf')
+        self.astar_cost = sys.maxsize
+        self.ucs_cost = sys.maxsize
         self.no_path_error = False
         self.error_timer = 0
 
@@ -63,7 +63,7 @@ class Game:
         self.current_algorithm = 'astar'
         self.selected_path = 'astar'
         self.astar_path = self.ucs_path = self.current_path = None
-        self.astar_cost = self.ucs_cost = float('inf')
+        self.astar_cost = self.ucs_cost = sys.maxsize
         self.random_route_learning = False  # Flag for RandomRoute learning mode
         self.path_index = self.move_timer = 0
 
@@ -147,7 +147,7 @@ class Game:
     def calculate_path_cost(self, path):
         """Calcula el costo de una ruta usando distancia Manhattan"""
         if not path:
-            return float('inf')  # Mantenemos float('inf') para comparaciones
+            return sys.maxsize  # Usamos sys.maxsize como "infinito" para enteros
         # Aseguramos que el resultado de la suma sea un entero
         return int(sum(abs(x2 - x1) + abs(y2 - y1)
                    for (x1, y1), (x2, y2) in zip(path, path[1:])))
@@ -175,6 +175,7 @@ class Game:
                 self.is_running = False
                 return False
 
+            # Aseguramos que los costos sean enteros
             self.astar_cost = self.calculate_path_cost(self.astar_path)
             self.ucs_cost = self.calculate_path_cost(self.ucs_path)
             
