@@ -64,6 +64,7 @@ class Game:
         self.selected_path = 'astar'
         self.astar_path = self.ucs_path = self.current_path = None
         self.astar_cost = self.ucs_cost = float('inf')
+        self.random_route_learning = False  # Flag for RandomRoute learning mode
         self.path_index = self.move_timer = 0
 
     def handle_mouse_click(self, pos):
@@ -119,11 +120,11 @@ class Game:
                 if self.selected_path:  # Verificar que se haya seleccionado una ruta
                     self.game_state.game_started = True
                     self.is_running = True
+                    self.is_running = True
                     self.calculate_path()
             else:
                 self.is_running = not self.is_running
-        elif action in ['astar', 'ucs']:
-            self.selected_path = action
+        elif action in ['astar', 'ucs', 'random']:
             if self.game_state.game_started:
                 self.calculate_path()
         else:
@@ -135,9 +136,12 @@ class Game:
             self.reset_game()
 
     def _switch_path(self, path_type):
-        """Cambia entre rutas A* y UCS"""
+        """Cambia entre rutas A*, UCS y RandomRoute"""
         self.selected_path = path_type
-        self.current_path = self.astar_path if path_type == 'astar' else self.ucs_path
+        if path_type == 'astar':
+            self.current_path = self.astar_path
+        elif path_type == 'ucs' or path_type == 'random':
+            self.current_path = self.ucs_path
         self.path_index = 1 if self.current_path else 0
 
     def calculate_path_cost(self, path):
@@ -148,14 +152,20 @@ class Game:
                    for (x1, y1), (x2, y2) in zip(path, path[1:]))
 
     def calculate_path(self):
-        # Busco el mejor camino usando A* y UCS
+        # Busco el mejor camino usando A* y RandomRoute
         try:
             start = self.game_state.player_pos
             goal = self.game_state.house_pos
             obstacles = self.game_state.obstacles
 
             self.astar_path = self.astar.find_path(start, goal, obstacles)
-            self.ucs_path = self.ucs.find_path(start, goal, obstacles)
+            
+            # Use the appropriate method for RandomRoute
+            if self.selected_path == 'random' or self.random_route_learning:
+                self.random_route_learning = True
+                self.ucs_path = self.ucs.find_path_with_learning(start, goal, obstacles)
+            else:
+                self.ucs_path = self.ucs.find_path(start, goal, obstacles)
 
             if not self.astar_path and not self.ucs_path:
                 self.game_state.no_path_error = True
@@ -166,7 +176,11 @@ class Game:
 
             self.astar_cost = self.calculate_path_cost(self.astar_path)
             self.ucs_cost = self.calculate_path_cost(self.ucs_path)
-            self.current_path = self.astar_path if self.selected_path == 'astar' else self.ucs_path
+            
+            if self.selected_path == 'astar':
+                self.current_path = self.astar_path
+            else:
+                self.current_path = self.ucs_path
             self.path_index = 1 if self.current_path else 0
             return True
         except Exception as e:
@@ -200,66 +214,27 @@ class Game:
         self.game_state.game_started = False
         
         # Visualize the movement matrix if RandomRoute was used
-        if self.selected_path == 'random':
+        if self.selected_path == 'random' or self.random_route_learning:
             self.visualize_movement_matrix()
     
     def visualize_movement_matrix(self):
-        """Visualiza la matriz de movimientos de RandomRoute"""
+        """Visualiza la matriz de movimientos de RandomRoute usando el método interno de la clase"""
         try:
-            # Get the movement matrix from RandomRoute
-            if hasattr(self.ucs, 'grid'):
-                # Create a figure with subplots for each direction
-                fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-                fig.suptitle('Movement Matrix Visualization', fontsize=16)
-                
-                # Direction names
-                directions = ['Right', 'Up', 'Left', 'Down']
-                
-                # Plot each direction as a heatmap
-                for i in range(4):
-                    row, col = i // 2, i % 2
-                    # Extract data for this direction
-                    direction_data = np.array([[self.ucs.grid[x][y][i] for y in range(GameConfig.GRID_HEIGHT)] 
-                                            for x in range(GameConfig.GRID_WIDTH)])
-                    
-                    # Create heatmap
-                    im = axs[row, col].imshow(direction_data.T, cmap='hot', interpolation='nearest')
-                    axs[row, col].set_title(f'Direction: {directions[i]}')
-                    axs[row, col].set_xlabel('X position')
-                    axs[row, col].set_ylabel('Y position')
-                    
-                    # Mark start and end points
-                    start_x, start_y = self.game_state.player_pos
-                    end_x, end_y = self.game_state.house_pos
-                    axs[row, col].plot(start_x, start_y, 'go', markersize=8, label='Start')
-                    axs[row, col].plot(end_x, end_y, 'bo', markersize=8, label='Goal')
-                    
-                    # Add colorbar
-                    plt.colorbar(im, ax=axs[row, col])
-                
-                # Mark the final path if available
-                if self.ucs_path:
-                    path_x = [point[0] for point in self.ucs_path]
-                    path_y = [point[1] for point in self.ucs_path]
-                    for ax in axs.flat:
-                        ax.plot(path_x, path_y, 'w-', linewidth=2, alpha=0.7, label='Path')
-                    
-                # Add a common legend
-                handles, labels = axs[0, 0].get_legend_handles_labels()
-                fig.legend(handles, labels, loc='lower center', ncol=3, fontsize=10)
-                
-                # Adjust layout and show the plot
-                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-                plt.show(block=False)  # Non-blocking to allow game to continue
+            # Use the plot_movement_matrix method from RandomRoute class
+            if hasattr(self.ucs, 'plot_movement_matrix'):
+                # Call the RandomRoute's plotting method without parameters
+                # as it now uses internal state tracking
+                self.ucs.plot_movement_matrix()
             else:
-                print("No movement matrix available to visualize")
+                print("RandomRoute does not have the plot_movement_matrix method")
         except Exception as e:
-            print("Algo Salio mal")
+            print(f"Error visualizing movement matrix: {e}")
         
     def reset_game(self):
         """Reinicia el juego a su estado inicial"""
         self.game_state.reset()
         self.initialize_game_variables()
+        self.random_route_learning = False
         self.game_state.generate_obstacles()
         self.calculate_path()
         pygame.time.wait(GameConfig.RESET_DELAY)
@@ -270,6 +245,7 @@ class Game:
             # Verificar que se haya seleccionado una ruta
             if not hasattr(self, 'selected_path'):
                 self.selected_path = 'astar'
+                self.random_route_learning = False
             self.game_state.game_started = True
             self.is_running = True
             self.calculate_path()

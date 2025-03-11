@@ -4,8 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4, se documenta y agrega una nueva clase para la ruta de aprendizaje">
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4.2, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida, pero existen bucles">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ADB.py" beforeDir="false" afterPath="$PROJECT_DIR$/ADB.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -50,6 +52,7 @@
     &quot;Python.Game.executor&quot;: &quot;Run&quot;,
     &quot;Python.GameState.executor&quot;: &quot;Run&quot;,
     &quot;Python.JuegoA.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Pruebas_grid.executor&quot;: &quot;Run&quot;,
     &quot;Python.Unnecesary.executor&quot;: &quot;Run&quot;,
     &quot;Python.config.executor&quot;: &quot;Run&quot;,
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
@@ -282,7 +285,55 @@
       <option name="project" value="LOCAL" />
       <updated>1740536308865</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida">
+      <option name="closed" value="true" />
+      <created>1740583447289</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1740583447289</updated>
+    </task>
+    <task id="LOCAL-00027" summary="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida">
+      <option name="closed" value="true" />
+      <created>1740583622382</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1740583622382</updated>
+    </task>
+    <task id="LOCAL-00028" summary="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida">
+      <option name="closed" value="true" />
+      <created>1740584603324</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1740584603324</updated>
+    </task>
+    <task id="LOCAL-00029" summary="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida">
+      <option name="closed" value="true" />
+      <created>1740584870460</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1740584870460</updated>
+    </task>
+    <task id="LOCAL-00030" summary="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida">
+      <option name="closed" value="true" />
+      <created>1740585461771</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1740585461771</updated>
+    </task>
+    <task id="LOCAL-00031" summary="Version 2.4.2, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida, pero existen bucles">
+      <option name="closed" value="true" />
+      <created>1740585775181</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1740585775181</updated>
+    </task>
+    <option name="localTasksCounter" value="32" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -308,6 +359,8 @@
     <MESSAGE value="Version 2.2 Optimizada" />
     <MESSAGE value="Version 2.3" />
     <MESSAGE value="Version 2.4, se documenta y agrega una nueva clase para la ruta de aprendizaje" />
-    <option name="LAST_COMMIT_MESSAGE" value="Version 2.4, se documenta y agrega una nueva clase para la ruta de aprendizaje" />
+    <MESSAGE value="Version 2.4.1, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida" />
+    <MESSAGE value="Version 2.4.2, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida, pero existen bucles" />
+    <option name="LAST_COMMIT_MESSAGE" value="Version 2.4.2, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida, pero existen bucles" />
   </component>
 </project>
