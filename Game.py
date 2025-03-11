@@ -147,9 +147,10 @@ class Game:
     def calculate_path_cost(self, path):
         """Calcula el costo de una ruta usando distancia Manhattan"""
         if not path:
-            return float('inf')
-        return sum(abs(x2 - x1) + abs(y2 - y1)
-                   for (x1, y1), (x2, y2) in zip(path, path[1:]))
+            return float('inf')  # Mantenemos float('inf') para comparaciones
+        # Aseguramos que el resultado de la suma sea un entero
+        return int(sum(abs(x2 - x1) + abs(y2 - y1)
+                   for (x1, y1), (x2, y2) in zip(path, path[1:])))
 
     def calculate_path(self):
         # Busco el mejor camino usando A* y RandomRoute
