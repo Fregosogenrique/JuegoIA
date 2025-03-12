@@ -54,6 +54,9 @@ class GameRenderer:
         if self.game.game_state.victory:
             self._draw_victory_message()
 
+        # Dibujar estado de entrenamiento
+        self._draw_training_status()
+
         # Dibujar barra lateral
         self._draw_sidebar()
 
@@ -218,6 +221,45 @@ class GameRenderer:
                     ))
                     self.screen.blit(text, text_rect)
 
+    def _draw_training_status(self):
+        """Dibuja el estado actual del entrenamiento si está en progreso"""
+        if not hasattr(self.game, 'is_training') or not self.game.is_training:
+            return
+            
+        # Configuración
+        font = pygame.font.SysFont(None, 24)
+        status_text = f"Entrenando... ({getattr(self.game, 'training_current_iteration', 0)}/{getattr(self.game, 'training_total_iterations', 0)})"
+        
+        # Crear texto
+        text = font.render(status_text, True, GameConfig.WHITE)
+        
+        # Calcular posición
+        text_rect = text.get_rect(
+            centerx=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
+            top=10
+        )
+        
+        # Crear fondo semitransparente
+        background = pygame.Surface((text_rect.width + 20, text_rect.height + 10))
+        background.fill(GameConfig.BLACK)
+        background.set_alpha(180)
+        
+        background_rect = background.get_rect(center=text_rect.center)
+        
+        # Dibujar fondo y texto
+        self.screen.blit(background, background_rect)
+        self.screen.blit(text, text_rect)
+        
+        # Si hay mensaje adicional de entrenamiento
+        if hasattr(self.game, 'training_status_message') and self.game.training_status_message:
+            status_font = pygame.font.SysFont(None, 18)
+            status_text = status_font.render(self.game.training_status_message, True, GameConfig.EGGSHELL)
+            status_rect = status_text.get_rect(
+                centerx=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
+                top=text_rect.bottom + 5
+            )
+            self.screen.blit(status_text, status_rect)
+
     def _draw_victory_message(self):
         """Dibuja el mensaje de victoria"""
         font = pygame.font.SysFont(None, 48)
@@ -238,6 +280,42 @@ class GameRenderer:
 
         # Dibujar el fondo y el texto
         self.screen.blit(background, background_rect)
+        self.screen.blit(text, text_rect)
+
+    def _draw_progress_bar(self, x, y, width, height, progress, bg_color, fg_color, border_color):
+        """
+        Dibuja una barra de progreso personalizada.
+        
+        Args:
+            x (int): Posición x de la barra
+            y (int): Posición y de la barra
+            width (int): Ancho total de la barra
+            height (int): Altura de la barra
+            progress (float): Valor de progreso (0-100)
+            bg_color (tuple): Color RGB del fondo de la barra
+            fg_color (tuple): Color RGB de la barra de progreso
+            border_color (tuple): Color RGB del borde de la barra
+        """
+        # Asegurar que el progreso esté entre 0 y 100
+        progress = max(0, min(100, progress))
+        
+        # Dibujar el fondo de la barra
+        bg_rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(self.screen, bg_color, bg_rect)
+        
+        # Dibujar el progreso
+        if progress > 0:
+            fg_width = int(width * (progress / 100.0))
+            fg_rect = pygame.Rect(x, y, fg_width, height)
+            pygame.draw.rect(self.screen, fg_color, fg_rect)
+        
+        # Dibujar el borde
+        pygame.draw.rect(self.screen, border_color, bg_rect, 1)
+        
+        # Mostrar el porcentaje de progreso en texto
+        font = pygame.font.SysFont(None, 18)
+        text = font.render(f"{int(progress)}%", True, GameConfig.BLACK)
+        text_rect = text.get_rect(center=(x + width // 2, y + height // 2))
         self.screen.blit(text, text_rect)
 
     def _draw_sidebar(self):
@@ -278,11 +356,11 @@ class GameRenderer:
         self.screen.blit(controls_title, controls_title_rect)
 
         # Botones
+        # Botones
         button_texts = [
             ("start", "Iniciar/Detener (Space)"),
             ("reset", "Reiniciar (R)"),
-            ("headless", "Ejecución Rápida (H)"),
-            ("edit_player", "Editar Jugador (P)"),
+            ("headless", "Entrenamiento (H)"),
             ("edit_house", "Editar Casa (C)"),
             ("edit_obstacles", "Editar Obstáculos (O)"),
             ("clear_obstacles", "Limpiar Obstáculos (L)")
@@ -350,9 +428,10 @@ class GameRenderer:
         self.screen.blit(title_stats, title_stats_rect)
 
         stats = [
-            f"Ejecuciones Visibles: {self.game.visible_executions}",
-            f"Ejecuciones Invisibles: {self.game.invisible_executions}",
-            f"Total Ejecuciones: {self.game.visible_executions + self.game.invisible_executions}"
+            f"Ejecuciones Visibles: {getattr(self.game, 'training_visible_executions', 0)}",
+            f"Ejecuciones Invisibles: {getattr(self.game, 'training_invisible_executions', 0)}",
+            f"Total Ejecuciones: {getattr(self.game, 'training_visible_executions', 0) + getattr(self.game, 'training_invisible_executions', 0)}",
+            f"Progreso Entrenamiento: {getattr(self.game, 'training_progress', 0):.2f}%"
         ]
 
         font_stats_text = pygame.font.SysFont(None, 20)
@@ -363,10 +442,82 @@ class GameRenderer:
                 top=title_stats_rect.bottom + 20 + i * 25
             )
             self.screen.blit(text, text_rect)
-
-    def get_button_at_pos(self, pos):
+        
+        # Dibujar barra de progreso de entrenamiento
+        progress_title = font_stats_text.render("Progreso de Entrenamiento:", True, GameConfig.EGGSHELL)
+        progress_title_rect = progress_title.get_rect(
+            left=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
+            top=title_stats_rect.bottom + 20 + len(stats) * 25
+        )
+        self.screen.blit(progress_title, progress_title_rect)
+        
+        # Obtener el progreso actual
+        training_progress = getattr(self.game, 'training_progress', 0)
+        
+        # Dibujar la barra de progreso
+        self._draw_progress_bar(
+            x=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
+            y=progress_title_rect.bottom + 5,
+            width=GameConfig.SIDEBAR_WIDTH - 2 * button_margin,
+            height=15,
+            progress=training_progress,
+            bg_color=GameConfig.BUTTON_BG,
+            fg_color=self._get_progress_color(training_progress),
+            border_color=GameConfig.BLACK
+        )
+        
+        # Añadir información adicional sobre el entrenamiento si está en curso
+        if hasattr(self.game, 'is_training') and self.game.is_training:
+            status_text = f"Ejecutando iteración {getattr(self.game, 'training_current_iteration', 0)}/{getattr(self.game, 'training_total_iterations', 0)}"
+            status_render = font_stats_text.render(status_text, True, GameConfig.EGGSHELL)
+            status_rect = status_render.get_rect(
+                left=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
+                top=progress_title_rect.bottom + 25
+            )
+            self.screen.blit(status_render, status_rect)
+    def get_button_at(self, pos):
         """Devuelve el ID del botón en la posición dada o None si no hay botón"""
         for button_id, rect in self.button_rects.items():
             if rect.collidepoint(pos):
                 return button_id
         return None
+    def _get_progress_color(self, progress):
+        """
+        Devuelve un color basado en el progreso del entrenamiento.
+        
+        Args:
+            progress (float): Valor de progreso (0-100)
+            
+        Returns:
+            tuple: Color RGB representando el progreso (rojo -> amarillo -> verde -> azul)
+        """
+        # Asegurar que el progreso esté entre 0 y 100
+        progress = max(0, min(100, progress))
+        
+        if progress < 25:
+            # Rojo a amarillo (0-25%)
+            r = 255
+            g = int(255 * (progress / 25))
+            b = 0
+        elif progress < 50:
+            # Amarillo a verde claro (25-50%)
+            r = int(255 * (1 - (progress - 25) / 25))
+            g = 255
+            b = 0
+        elif progress < 75:
+            # Verde claro a verde (50-75%)
+            r = 0
+            g = 255
+            b = int(255 * ((progress - 50) / 25))
+        else:
+            # Verde a azul verdoso (75-100%)
+            r = 0
+            g = int(255 * (1 - (progress - 75) / 25))
+            b = 255
+        
+        # Asegurarse de que los valores RGB estén dentro del rango 0-255
+        r = max(0, min(255, r))
+        g = max(0, min(255, g))
+        b = max(0, min(255, b))
+        
+        return (r, g, b)

@@ -21,38 +21,38 @@ class Game:
         self.game_state.initialize_game()
 
         # Inicializar matriz de movimiento
-        # Inicializar matriz de movimiento
         self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
 
-        # Variables de control
+        # Variables de control del juego
         self.is_running = False
         self.move_timer = pygame.time.get_ticks()
         self.edit_mode = None
 
-        # Variables para el árbol de decisiones
+        # Variables de ruta y camino
         self.current_path = []
         self.path_index = 0
         self.best_path = None
 
-        # Inicializar el agente de Q-learning
+        # Variables de entrenamiento y aprendizaje
         self.agent = RandomRoute(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.is_training = False
         self.training_progress = 0
-        self.show_training_visualization = False
-
-        self.renderer = GameRenderer(self.screen, self)
-
-        # Variables de aprendizaje
+        self.training_status = ""
+        self.training_complete = False
+        self.show_training_visualization = True
+        self.max_training_iterations = 500
         self.total_executions = 0
         self.visible_executions = 0
         self.invisible_executions = 0
-        self.max_training_iterations = 500
+
+        # Inicializar renderizador
+        self.renderer = GameRenderer(self.screen, self)
 
     def update(self):
         # Actualizar estado del juego
         if not self.is_running:
             return
-
+        
         current_time = pygame.time.get_ticks()
 
         # En modo headless, usar la ruta óptima
@@ -72,6 +72,16 @@ class Game:
                         self.game_state.victory = True
                         self.is_running = False
                         GameConfig.HEADLESS_MODE = False
+                        
+                        # Visualizar análisis final si está disponible
+                        if hasattr(self.agent, 'plot_comprehensive_analysis'):
+                            self.agent.plot_comprehensive_analysis(
+                                self.game_state.initial_player_pos,
+                                self.game_state.house_pos,
+                                self.game_state.obstacles,
+                                save_path="analisis_final.png",
+                                show=True
+                            )
                     else:
                         self.path_index += 1
                         self.move_timer = current_time
@@ -79,7 +89,6 @@ class Game:
                     print("Ejecución rápida completada")
                     self.is_running = False
                     GameConfig.HEADLESS_MODE = False
-        else:
             # Modo normal con movimientos aleatorios
             if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
                 self._make_random_move()
@@ -187,90 +196,71 @@ class Game:
             self.current_path.append(next_pos)
 
     def run_headless(self):
-        # Ejecuta el modo sin interfaz para aprendizaje rápido
-        # Guardar configuración original
-        original_delay = GameConfig.MOVE_DELAY
-        GameConfig.MOVE_DELAY = 0
-
-        # Reiniciar posición del jugador pero mantener matriz de aprendizaje
+        """
+        Ejecuta el proceso de aprendizaje en segundo plano y muestra la mejor ruta
+        """
+        # Iniciar el proceso de aprendizaje
+        print("Iniciando proceso de aprendizaje...")
+        
+        # Definir número de iteraciones para el aprendizaje
+        iterations = 500  # Valor predeterminado si no se especifica
+        
+        # Reiniciar posición del jugador
         self.game_state.player_pos = self.game_state.initial_player_pos
         self.game_state.victory = False
-        self.current_path = [self.game_state.player_pos]
+        
+        # Preparar visualización del progreso
+        self.is_training = True
+        self.training_progress = 0
+        
+        # Configurar los obstáculos para el agente
+        obstacles_set = set(self.game_state.obstacles)
+        
+        # Configurar el número de iteraciones máximas
+        self.agent.max_training_iterations = iterations
+        
+        # Crear una función de callback para actualizar la interfaz durante el entrenamiento
+        def progress_callback(iteration, path, history, best_path, is_final=False):
+            # Actualizar el progreso
+            self.training_progress = (iteration / iterations) * 100
+            
+            # Actualizar mejor camino
+            if best_path:
+                self.best_path = best_path
+                
+            # Cuando termina, mostrar la mejor ruta
+            if is_final:
+                print(f"Aprendizaje completado. Mejor ruta: {len(best_path) if best_path else 'No encontrada'} pasos")
+                self.is_training = False
+                
+                # Mostrar la mejor ruta
+                if best_path:
+                    # Reiniciar el juego para mostrar la ruta
+                    self.game_state.player_pos = self.game_state.initial_player_pos
+                    self.current_path = best_path
+                    self.path_index = 0
+                    GameConfig.HEADLESS_MODE = True
+                    self.is_running = True
+                    self.move_timer = pygame.time.get_ticks()
+                    
+                    # Mostrar análisis del aprendizaje
+                    if hasattr(self.agent, 'plot_analysis'):
+                        self.agent.plot_analysis(
+                            path=best_path,
+                            history=history,
+                            title="Análisis Final de Aprendizaje",
+                            show_heatmap=True
+                        )
+        
+        # Iniciar el entrenamiento en segundo plano
+        self.agent.train_background(
+            self.game_state.initial_player_pos,
+            self.game_state.house_pos,
+            obstacles_set,
+            callback=progress_callback,
+            update_interval=5  # Actualizar el progreso cada 5 iteraciones
+        )
 
-        steps = 0
-
-        while True:
-            # Verificar si llegamos a la meta
-            if self.game_state.player_pos == self.game_state.house_pos:
-                self.game_state.victory = True
-
-                # Calcular la ruta óptima usando el árbol de decisiones
-                self.calculate_optimal_path()
-                break
-
-            # Decidir entre movimiento aleatorio o inteligente
-            if GameConfig.USE_DECISION_TREE and random.random() < 0.8:
-                # Usar árbol de decisiones para movimiento inteligente
-                decision_tree = DecisionTree(self.game_state, self.movement_matrix)
-                # Usar profundidad menor para decisiones rápidas
-                decision_tree.max_depth = 3
-                smart_path = decision_tree.find_path(
-                    self.game_state.player_pos,
-                    self.game_state.house_pos
-                )
-
-                if smart_path and len(smart_path) > 1:
-                    # Tomar solo el siguiente paso del camino inteligente
-                    next_pos = smart_path[1]
-
-                    # Verificar que el movimiento sea válido (por seguridad)
-                    if (0 <= next_pos[0] < GameConfig.GRID_WIDTH and
-                            0 <= next_pos[1] < GameConfig.GRID_HEIGHT and
-                            next_pos not in self.game_state.obstacles):
-
-                        self.game_state.player_pos = next_pos
-                        self.movement_matrix[next_pos[1]][next_pos[0]] += 1
-                        self.current_path.append(next_pos)
-                    else:
-                        # Si por alguna razón el movimiento no es válido, usar aleatorio
-                        self._make_random_move_headless()
-                else:
-                    # Si no se encuentra un camino, usar movimiento aleatorio
-                    self._make_random_move_headless()
-            else:
-                # Usar movimiento aleatorio
-                self._make_random_move_headless()
-
-            steps += 1
-
-        # Restaurar configuración original
-        GameConfig.MOVE_DELAY = original_delay
-
-    def _make_random_move_headless(self):
-        # Realiza un movimiento aleatorio en modo headless
-        move_value = random.randint(1, 20)
-        current_pos = self.game_state.player_pos
-        next_pos = None
-
-        # Determinar dirección basada en los rangos de config
-        if GameConfig.MOVE_UP_RANGE[0] <= move_value <= GameConfig.MOVE_UP_RANGE[1]:
-            next_pos = (current_pos[0], current_pos[1] - 1)
-        elif GameConfig.MOVE_RIGHT_RANGE[0] <= move_value <= GameConfig.MOVE_RIGHT_RANGE[1]:
-            next_pos = (current_pos[0] + 1, current_pos[1])
-        elif GameConfig.MOVE_DOWN_RANGE[0] <= move_value <= GameConfig.MOVE_DOWN_RANGE[1]:
-            next_pos = (current_pos[0], current_pos[1] + 1)
-        elif GameConfig.MOVE_LEFT_RANGE[0] <= move_value <= GameConfig.MOVE_LEFT_RANGE[1]:
-            next_pos = (current_pos[0] - 1, current_pos[1])
-
-            # Verificar si el movimiento es válido
-        if (next_pos and
-                0 <= next_pos[0] < GameConfig.GRID_WIDTH and
-                0 <= next_pos[1] < GameConfig.GRID_HEIGHT and
-                next_pos not in self.game_state.obstacles):
-            # Actualizar posición y matriz
-            self.game_state.player_pos = next_pos
-            self.movement_matrix[next_pos[1]][next_pos[0]] += 1
-            self.current_path.append(next_pos)
 
     def calculate_optimal_path(self):
         """
@@ -398,7 +388,7 @@ class Game:
         print(f"Modo de edición actual: {self.edit_mode}")
 
         # Obtener botón clickeado
-        clicked_button = self.renderer.get_button_at_pos(pos)
+        clicked_button = self.renderer.get_button_at(pos)
         print(f"Botón clickeado: {clicked_button}")
 
         if clicked_button == "start":
@@ -498,16 +488,41 @@ class Game:
             
             # Mostrar indicador de progreso de entrenamiento si está activo
             if self.is_training:
-                # Dibujar barra de progreso en la parte inferior
-                progress_width = int((GameConfig.SCREEN_WIDTH - 20) * (self.training_progress / 100))
-                pygame.draw.rect(self.screen, (50, 50, 50), (10, GameConfig.SCREEN_HEIGHT - 30, GameConfig.SCREEN_WIDTH - 20, 20))
-                pygame.draw.rect(self.screen, (0, 200, 0), (10, GameConfig.SCREEN_HEIGHT - 30, progress_width, 20))
+                # Dibujar fondo para la información de entrenamiento
+                pygame.draw.rect(self.screen, (30, 30, 30), 
+                                (0, GameConfig.SCREEN_HEIGHT - 100, GameConfig.SCREEN_WIDTH, 100))
                 
-                # Mostrar texto de progreso
+                # Dibujar barra de progreso en la parte inferior
+                progress_width = int((GameConfig.SCREEN_WIDTH - 40) * (self.training_progress / 100))
+                pygame.draw.rect(self.screen, (50, 50, 50), (20, GameConfig.SCREEN_HEIGHT - 40, GameConfig.SCREEN_WIDTH - 40, 20))
+                
+                # Color dinámico para la barra basado en el progreso
+                progress_color = (
+                    min(255, int(255 * (1 - self.training_progress / 100))),  # R: disminuye con el progreso
+                    min(255, int(255 * (self.training_progress / 100))),       # G: aumenta con el progreso
+                    50  # B: constante
+                )
+                pygame.draw.rect(self.screen, progress_color, (20, GameConfig.SCREEN_HEIGHT - 40, progress_width, 20))
+                
+                # Mostrar texto de progreso y estado
                 font = pygame.font.Font(None, 24)
-                text = font.render(f"Entrenamiento: {self.training_progress:.1f}%", True, (255, 255, 255))
-                self.screen.blit(text, (20, GameConfig.SCREEN_HEIGHT - 50))
-            
+                
+                # Crear sombra para el texto (mejora legibilidad)
+                text_shadow = font.render(f"Aprendizaje: {self.training_progress:.1f}% {self.training_status}", True, (0, 0, 0))
+                self.screen.blit(text_shadow, (22, GameConfig.SCREEN_HEIGHT - 72))
+                
+                # Texto principal
+                text = font.render(f"Aprendizaje: {self.training_progress:.1f}% {self.training_status}", True, (255, 255, 255))
+                self.screen.blit(text, (20, GameConfig.SCREEN_HEIGHT - 70))
+                
+                # Si el aprendizaje ha completado, mostrar mensaje de finalización
+                if self.training_complete and self.best_path:
+                    # Mensaje con detalles de la ruta
+                    complete_text = font.render(
+                        f"¡Aprendizaje completado! Mejor ruta: {len(self.best_path)} pasos", 
+                        True, (255, 255, 0)
+                    )
+                    self.screen.blit(complete_text, (20, GameConfig.SCREEN_HEIGHT - 95))
             # Actualizar pantalla
             pygame.display.flip()
             
@@ -621,7 +636,7 @@ class Game:
             self.best_path = self.agent.best_path
         else:
             print("No se encontró una ruta óptima durante el entrenamiento")
-
+            self.training_status = "No se encontró ruta óptima"
     def training_callback(self, iteration, path, history, best_path, is_final=False):
         """
         Callback que se ejecuta periódicamente durante el entrenamiento
@@ -633,50 +648,80 @@ class Game:
             best_path: Mejor camino encontrado hasta ahora
             is_final: Si es la llamada final del callback
         """
+        # Actualizar el progreso
         self.training_progress = (iteration / self.max_training_iterations) * 100
         
         # Actualizar mejor camino si existe
         if best_path:
             self.best_path = best_path
-            
-        # Si es la última iteración, actualizar visualizaciones finales
-        if is_final:
-            print(f"Entrenamiento completado. {iteration} iteraciones realizadas.")
-            print(f"Mejor camino encontrado: {len(best_path) if best_path else 'ninguno'} pasos")
-            
-            # Calcular estadísticas de entrenamiento
-            successful_paths = sum(1 for h in history if h['success'])
-            success_rate = (successful_paths / len(history)) * 100 if history else 0
-            
-            print(f"Tasa de éxito: {success_rate:.2f}%")
-            print(f"Caminos exitosos: {successful_paths}/{len(history)}")
-            
-            # Actualizar estado de entrenamiento
-            self.is_training = False
-            
-            # Mostrar el mejor camino si existe
-            if best_path:
-                self.best_path = best_path
-                # Generar visualización final
-                if self.show_training_visualization:
-                    self.agent.plot_analysis(
-                        path=self.best_path,
-                        history=history,
-                        title="Análisis Final de Entrenamiento",
-                        show_heatmap=True
-                    )
+            self.training_status = f"Mejor ruta: {len(best_path)} pasos"
         else:
-            # Durante el entrenamiento, actualizar visualización periódicamente
-            if iteration % 50 == 0:  # Actualizar cada 50 iteraciones
-                print(f"Iteración {iteration}/{self.max_training_iterations} ({self.training_progress:.1f}%)")
+            self.training_status = "Buscando ruta óptima..."
+            
+        # Actualizar visualización cada cierto número de iteraciones
+        if iteration % 20 == 0 and not is_final and path:
+            # Mostrar información detallada del progreso
+            success_count = sum(1 for h in history[-100:] if h.get('success', False)) if history else 0
+            recent_success_rate = (success_count / min(100, len(history))) * 100 if history else 0
+            
+            # Actualizar estado con métricas recientes
+            self.training_status = f"Éxito reciente: {recent_success_rate:.1f}%"
+            
+            # Verificar si el agente está mejorando
+            if history and len(history) > 100:
+                recent_iterations = [h.get('path_length', float('inf')) for h in history[-50:] if h.get('success', False)]
+                earlier_iterations = [h.get('path_length', float('inf')) for h in history[-100:-50] if h.get('success', False)]
                 
-                if self.show_training_visualization:
-                    # Mostrar visualización de progreso
-                    self.agent.plot_q_values(
-                        start=self.game_state.initial_player_pos,
-                        goal=self.game_state.house_pos,
-                        current_path=path,
-                        best_path=best_path,
-                        title=f"Entrenamiento - Iteración {iteration}"
+                if recent_iterations and earlier_iterations:
+                    recent_avg = np.mean(recent_iterations) if len(recent_iterations) > 0 else float('inf')
+                    earlier_avg = np.mean(earlier_iterations) if len(earlier_iterations) > 0 else float('inf')
+                    
+                    # Actualizar estado con información de mejora
+                    if recent_avg < earlier_avg:
+                        improvement = ((earlier_avg - recent_avg) / earlier_avg) * 100
+                        self.training_status = f"Mejorando: {improvement:.1f}% (caminos más cortos)"
+                    elif recent_avg > earlier_avg:
+                        decline = ((recent_avg - earlier_avg) / earlier_avg) * 100
+                        self.training_status = f"Explorando: {decline:.1f}% (caminos más largos)"
+                    else:
+                        self.training_status = f"Estable: {recent_avg:.1f} pasos promedio"
+        
+        # Cuando finaliza el entrenamiento, mostrar la mejor ruta
+        if is_final:
+            self.is_training = False
+            self.training_complete = True
+            
+            # Actualizar estado final
+            # Actualizar estado final
+            if best_path:
+                print(f"Entrenamiento completo. Mejor ruta: {len(best_path)} pasos")
+                self.training_status = f"¡Completado! Mejor ruta: {len(best_path)} pasos"
+                # Preparar para mostrar la mejor ruta con una transición suave
+                self.game_state.player_pos = self.game_state.initial_player_pos
+                self.current_path = best_path
+                self.path_index = 0
+                self.is_running = True
+                self.move_timer = pygame.time.get_ticks() + 1000  # Retardo para una transición suave
+                
+                # Mostrar análisis final del aprendizaje
+                if hasattr(self.agent, 'plot_comprehensive_analysis'):
+                    self.agent.plot_comprehensive_analysis(
+                        self.game_state.initial_player_pos,
+                        self.game_state.house_pos,
+                        self.game_state.obstacles,
+                        save_path="analisis_aprendizaje.png",
+                        show=self.show_training_visualization
                     )
-
+            else:
+                print("Entrenamiento completo. No se encontró una ruta óptima.")
+                self.training_status = "No se encontró ruta óptima"
+                
+            # Actualizar visualización final
+            if self.show_training_visualization and best_path:
+                # Mostrar visualización de la mejor ruta
+                self.agent.plot_best_path(
+                    start=self.game_state.initial_player_pos,
+                    goal=self.game_state.house_pos,
+                    obstacles=self.game_state.obstacles,
+                    title="Mejor Ruta Encontrada"
+                )
