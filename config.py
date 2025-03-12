@@ -34,7 +34,7 @@ class GameConfig:
     SHOW_MOVEMENT_MATRIX = True  # Mostrar números de movimiento
     HEADLESS_MODE = False  # Modo sin interfaz gráfica
     USE_DECISION_TREE = True  # Usar árbol de decisiones con poda
-    OBSTACLE_PERCENTAGE = 20  # Porcentaje de obstáculos en el grid (0-100)
+    OBSTACLE_PERCENTAGE = 25  # Porcentaje de obstáculos en el grid (0-100)
 
     # Posiciones iniciales predefinidas
     INITIAL_PLAYER_POS = (12, 10)  # Posición inicial del jugador (x, y)
