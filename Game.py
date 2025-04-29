@@ -126,7 +126,19 @@ class Game:
         if GameConfig.HEADLESS_MODE and self.best_path:
             if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
                 print(f"Paso {self.path_index + 1}/{len(self.best_path)}")
-
+                
+                # Permitir que los enemigos se muevan antes de decidir el próximo movimiento del jugador
+                self._update_enemies(current_time)
+                
+                # Verificar colisiones después del movimiento de enemigos
+                if self._check_player_enemy_collision():
+                    # Si el jugador fue atrapado, reiniciar posición y recalcular ruta
+                    print("Jugador atrapado durante ejecución rápida. Recalculando ruta...")
+                    self.path_index = 0
+                    self._recalculate_path_for_headless()
+                    self.move_timer = current_time
+                    return
+                
                 if self.path_index < len(self.best_path):
                     # Mover al siguiente punto en la ruta
                     next_pos = self.best_path[self.path_index]
@@ -156,9 +168,8 @@ class Game:
                             self.path_index += 1
                     else:
                         # Hay un enemigo en la posición, buscar una ruta alternativa
-                        # o esperar a que se mueva
-                        print("Enemigo en el camino. Recalculando ruta...")
-                        self.calculate_optimal_path()
+                        print("Enemigo en el camino durante ejecución rápida. Recalculando ruta...")
+                        self._recalculate_path_for_headless()
                         self.path_index = 0
                         
                     self.move_timer = current_time
@@ -166,14 +177,13 @@ class Game:
                     print("Ejecución rápida completada")
                     self.is_running = False
                     GameConfig.HEADLESS_MODE = False
-            # Modo normal con movimientos aleatorios
+                    
+                return  # Salir después de procesar la ejecución rápida
+                
+            # Modo normal con movimientos aleatorios (esta parte no debería ejecutarse en headless)
             if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
                 self._make_random_move()
                 self.move_timer = current_time
-                
-            # Permitir que los enemigos se muevan durante la ejecución de la ruta
-            self._update_enemies()
-            self._check_player_enemy_collision()
 
         if self.game_state.victory:
             # Calcular la ruta óptima cuando llegamos a la meta
@@ -1063,10 +1073,13 @@ class Game:
                 print(f"Ruta encontrada con {len(self.best_path)} pasos")
                 self.current_path = self.best_path.copy()
                 self.path_index = 0
+                self.current_path = self.best_path.copy()
+                self.path_index = 0
                 self.is_running = True
                 self.move_timer = pygame.time.get_ticks()
-            else:
-                print("No se pudo encontrar una ruta óptima")
+                
+                # Actualizar enemigos antes de comenzar la ejecución
+                self._update_enemies(pygame.time.get_ticks())
                 GameConfig.HEADLESS_MODE = False
 
     def start_training(self):
@@ -1145,14 +1158,15 @@ class Game:
             # Actualizar estado con métricas recientes
             self.training_status = f"Éxito reciente: {recent_success_rate:.1f}%"
             
-            # Verificar si el agente está mejorando
+            # Analizar tendencias de mejora en la longitud de los caminos
             if history and len(history) > 100:
-                recent_iterations = [h.get('path_length', float('inf')) for h in history[-50:] if h.get('success', False)]
-                earlier_iterations = [h.get('path_length', float('inf')) for h in history[-100:-50] if h.get('success', False)]
+                # Calcular longitud promedio de los caminos más recientes
+                recent_paths = [h.get('path_length', 0) for h in history[-50:] if h.get('success', False)]
+                earlier_paths = [h.get('path_length', 0) for h in history[-100:-50] if h.get('success', False)]
                 
-                if recent_iterations and earlier_iterations:
-                    recent_avg = np.mean(recent_iterations) if len(recent_iterations) > 0 else float('inf')
-                    earlier_avg = np.mean(earlier_iterations) if len(earlier_iterations) > 0 else float('inf')
+                if recent_paths:
+                    recent_avg = np.mean(recent_paths)
+                    earlier_avg = np.mean(earlier_paths) if earlier_paths else float('inf')
                     
                     # Actualizar estado con información de mejora
                     if recent_avg < earlier_avg:
@@ -1168,61 +1182,6 @@ class Game:
         if is_final:
             self.is_training = False
             self.training_complete = True
-            
-    def _follow_path(self, current_time):
-        """
-        Gestiona el movimiento del jugador siguiendo una ruta preestablecida.
-        
-        Este método maneja:
-        - Movimiento del jugador según el tiempo y la ruta actual
-        - Detección de obstáculos y enemigos en el camino
-        - Recálculo de ruta cuando es necesario
-        - Detección de llegada a la meta
-        
-        Args:
-            current_time (int): Tiempo actual en milisegundos para sincronizar el movimiento
-        """
-        # Verificar si es momento de moverse
-        if current_time - self.move_timer <= GameConfig.MOVE_DELAY:
-            return
-            
-        # Avanzar al siguiente punto en la ruta
-        if self.path_index < len(self.current_path) - 1:
-            self.path_index += 1
-            next_pos = self.current_path[self.path_index]
-            
-            # Verificar si hay un enemigo en el camino
-            if next_pos in self.game_state.enemy_positions:
-                print("Enemigo detectado en el camino. Recalculando ruta...")
-                # Retroceder al punto anterior
-                self.path_index = max(0, self.path_index - 1)
-                
-                # Recalcular ruta
-                self._recalculate_path()
-                
-                # No moverse en este ciclo
-                self.move_timer = current_time
-                return
-                
-            # Mover al jugador a la siguiente posición
-            self.game_state.player_pos = next_pos
-            
-            # Actualizar matriz de movimiento
-            self.movement_matrix[next_pos[1]][next_pos[0]] += 1
-            
-            # Verificar victoria
-            if next_pos == self.game_state.house_pos:
-                print("¡Llegamos a la meta!")
-                self.game_state.victory = True
-                self.is_running = False
-                
-            # Actualizar temporizador
-            self.move_timer = current_time
-        else:
-            # Llegamos al final del camino
-            if not self.game_state.victory:
-                print("Fin del camino sin llegar a la meta. Recalculando...")
-                self._recalculate_path()
             
     def _recalculate_path(self):
         """
@@ -1266,6 +1225,56 @@ class Game:
         # Si no se encontró ninguna ruta válida, simplemente hacer un movimiento aleatorio
         print("No se pudo encontrar una ruta válida. Utilizando movimiento aleatorio.")
         self._make_random_move()
+        
+    def _recalculate_path_for_headless(self):
+        """
+        Recalcula la ruta durante la ejecución rápida (headless mode).
+        
+        Este método es específico para el modo headless y actualiza self.best_path
+        con una nueva ruta que evita enemigos.
+        """
+        print("Recalculando ruta para ejecución rápida...")
+        
+        # Intentar con árbol de decisiones primero (con mayor profundidad)
+        decision_tree = DecisionTree(self.game_state, self.movement_matrix)
+        decision_tree.max_depth = 20  # Mayor profundidad para encontrar rutas alternativas
+        
+        new_path = decision_tree.find_path(
+            self.game_state.player_pos,
+            self.game_state.house_pos
+        )
+        
+        if new_path and len(new_path) > 1:
+            print(f"Nueva ruta encontrada para ejecución rápida: {len(new_path)} pasos")
+            self.best_path = new_path
+            return
+
+        # Si no se encontró un camino con árbol de decisiones, intentar con el agente
+        if hasattr(self.agent, 'find_path'):
+            agent_path = self.agent.find_path(
+                self.game_state.player_pos,
+                self.game_state.house_pos,
+                self.game_state.obstacles
+            )
+            
+            if agent_path and len(agent_path) > 1:
+                print(f"Nueva ruta encontrada con agente: {len(agent_path)} pasos")
+                self.best_path = agent_path
+                return
+        
+        # Como último recurso, usar el mapa de calor si está entrenado
+        if self.heat_map_trained:
+            heat_map_path = self.heat_map_pathfinder.find_path_with_heat_map(
+                self.game_state.player_pos,
+                self.game_state.house_pos
+            )
+            
+            if heat_map_path and len(heat_map_path) > 1:
+                print(f"Nueva ruta encontrada con mapa de calor: {len(heat_map_path)} pasos")
+                self.best_path = heat_map_path
+                return
+                
+        print("No se pudo encontrar una ruta alternativa. Usando la ruta actual.")
 
     def _update_enemies(self, current_time=None):
         """
@@ -1286,8 +1295,73 @@ class Game:
             return
             
         # Si no se proporciona el tiempo actual, obtenerlo
+                    
+    def _follow_path(self, current_time=None):
+        """
+        Gestiona el movimiento del jugador siguiendo una ruta preestablecida.
+        
+        Este método maneja:
+        - Movimiento del jugador según el tiempo y la ruta actual
+        - Detección de obstáculos y enemigos en el camino
+        - Recálculo de ruta cuando es necesario
+        - Detección de llegada a la meta
+        
+        Args:
+            current_time (int): Tiempo actual en milisegundos para sincronizar el movimiento
+        """
+        # Si no se proporciona tiempo, usar el tiempo actual
         if current_time is None:
             current_time = pygame.time.get_ticks()
+            
+        # Verificar si es momento de moverse
+        if current_time - self.move_timer <= GameConfig.MOVE_DELAY:
+            return
+            
+        # Actualizar enemigos antes de moverse
+        self._update_enemies(current_time)
+        
+        # Verificar colisiones después del movimiento de enemigos
+        if self._check_player_enemy_collision():
+            # Si el jugador fue atrapado, no continuar con la actualización
+            return
+            
+        # Avanzar al siguiente punto en la ruta
+        if self.path_index < len(self.current_path) - 1:
+            self.path_index += 1
+            next_pos = self.current_path[self.path_index]
+            
+            # Verificar si hay un enemigo en el camino
+            if next_pos in self.game_state.enemy_positions:
+                print("Enemigo detectado en el camino. Recalculando ruta...")
+                # Retroceder al punto anterior
+                self.path_index = max(0, self.path_index - 1)
+                
+                # Recalcular ruta
+                self._recalculate_path()
+                
+                # No moverse en este ciclo
+                self.move_timer = current_time
+                return
+                
+            # Mover al jugador a la siguiente posición
+            self.game_state.player_pos = next_pos
+            
+            # Actualizar matriz de movimiento
+            self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+            
+            # Verificar victoria
+            if next_pos == self.game_state.house_pos:
+                print("¡Llegamos a la meta!")
+                self.game_state.victory = True
+                self.is_running = False
+                
+            # Actualizar temporizador
+            self.move_timer = current_time
+        else:
+            # Llegamos al final del camino
+            if not self.game_state.victory:
+                print("Fin del camino sin llegar a la meta. Recalculando...")
+                self._recalculate_path()
         
         # Calcular el tiempo transcurrido desde la última actualización
         elapsed_time = self.clock.get_time() if hasattr(self.clock, 'get_time') else 16  # 16ms aproximadamente 60fps por defecto
