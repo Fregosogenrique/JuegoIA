@@ -6,6 +6,9 @@ class AStar:
     """
     Implementación del algoritmo A* (A-star) para encontrar caminos óptimos en el juego.
     
+    IMPORTANTE: El personaje NO PUEDE pasar por casillas ocupadas por enemigos bajo
+    ninguna circunstancia. Esta restricción es absoluta y el algoritmo la garantiza.
+    
     La clase implementa el algoritmo A*, un algoritmo de búsqueda informada que:
     - Encuentra la ruta más corta entre dos puntos en un grid
     - Utiliza una heurística (distancia Manhattan) para guiar la búsqueda
@@ -28,8 +31,9 @@ class AStar:
 
     # Constants for enemy avoidance
     ENEMY_INFLUENCE_RADIUS = 4  # Radio de influencia del enemigo (ajustado para grid más grande)
-    MAX_DANGER_COST = 10.0      # Costo máximo de peligro cerca de enemigos
+    MAX_DANGER_COST = 15.0      # Costo máximo de peligro cerca de enemigos
     SAFETY_WEIGHT = 1.5         # Peso para balancear distancia vs seguridad (ajustado para mejor balance)
+    BLOCKED_ZONE_RADIUS = 1.0   # Radio de zona absolutamente bloqueada alrededor de enemigos (valor mínimo)
 
     def __init__(self, game_state):
         """
@@ -45,6 +49,32 @@ class AStar:
         """
         self.game_state = game_state
 
+    def is_position_safe(self, pos):
+        """
+        Verifica si una posición es segura (no ocupada por enemigos).
+        
+        Comprueba explícitamente si una posición está ocupada por un enemigo
+        o si está demasiado cerca de un enemigo (dentro de la zona bloqueada).
+        
+        Args:
+            pos (tuple): Posición (x, y) a verificar.
+            
+        Returns:
+            bool: True si la posición es segura, False si está ocupada por un enemigo
+                  o está demasiado cerca de uno.
+        """
+        # Verificar si la posición está exactamente ocupada por un enemigo
+        if pos in self.game_state.enemies:
+            return False
+            
+        # Verificar si está dentro de la zona de bloqueo absoluto de algún enemigo
+        for enemy_pos in self.game_state.enemies:
+            distance = math.sqrt((pos[0] - enemy_pos[0])**2 + (pos[1] - enemy_pos[1])**2)
+            if distance <= self.BLOCKED_ZONE_RADIUS:
+                return False
+                
+        return True
+
     def calculate_enemy_influence(self, pos):
         """
         Calcula la influencia total de los enemigos en una posición dada.
@@ -55,11 +85,11 @@ class AStar:
         
         Args:
             pos (tuple): Posición (x, y) a evaluar.
-            
-        Returns:
-            float: Valor de influencia/peligro en la posición (0.0 = seguro,
-                  valores mayores indican mayor peligro).
         """
+        # Si la posición no es segura, retornar costo infinito
+        if not self.is_position_safe(pos):
+            return float('inf')
+            
         total_influence = 0.0
         
         for enemy_pos in self.game_state.enemies:
@@ -70,6 +100,10 @@ class AStar:
             if distance <= self.ENEMY_INFLUENCE_RADIUS:
                 # Influencia inversa a la distancia, normalizada
                 influence = (self.ENEMY_INFLUENCE_RADIUS - distance) / self.ENEMY_INFLUENCE_RADIUS
+                influence = influence * self.MAX_DANGER_COST
+                
+                # Tomar el mayor valor de influencia (caso de múltiples enemigos)
+                total_influence = max(total_influence, influence)
                 influence = influence * self.MAX_DANGER_COST
                 
                 # Tomar el mayor valor de influencia (caso de múltiples enemigos)
@@ -104,6 +138,10 @@ class AStar:
         """
         if not start or not goal:
             return None
+            
+        # Verificar que las posiciones de inicio y final sean seguras
+        if not self.is_position_safe(start) or not self.is_position_safe(goal):
+            return None
 
         # Conjuntos para el algoritmo
         open_set = {start}  # Nodos por explorar
@@ -133,6 +171,11 @@ class AStar:
 
                 # Calcular g_score tentativo con penalización por enemigos
                 enemy_cost = self.calculate_enemy_influence(neighbor)
+                
+                # Saltar posiciones no seguras (costo infinito)
+                if enemy_cost == float('inf'):
+                    continue
+                    
                 movement_cost = 1.0 + enemy_cost * self.SAFETY_WEIGHT
                 tentative_g_score = g_score[current] + movement_cost
 
@@ -165,6 +208,10 @@ class AStar:
         Returns:
             float: Valor heurístico combinado (distancia + seguridad).
         """
+        # Si la posición no es segura, retornar infinito
+        if not self.is_position_safe(pos1):
+            return float('inf')
+            
         # Distancia Manhattan base
         base_distance = abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
         
@@ -211,12 +258,8 @@ class AStar:
                     0 <= ny < GameConfig.GRID_HEIGHT):
                 # Verificar que no sea un obstáculo
                 if (nx, ny) not in self.game_state.obstacles:
-                    # Calcular peligrosidad de la casilla
-                    danger_level = self.calculate_enemy_influence((nx, ny))
-                    
-                    # Comprobar si no es una posición extremadamente peligrosa
-                    # (estar exactamente en la misma casilla que un enemigo)
-                    if (nx, ny) not in self.game_state.enemies:
+                    # Verificar explícitamente que la posición sea segura (sin enemigos)
+                    if self.is_position_safe((nx, ny)):
                         valid_neighbors.append((nx, ny))
 
         return valid_neighbors
