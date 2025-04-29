@@ -102,6 +102,7 @@ class Game:
         - La verificación de victoria al alcanzar la meta
         - Ejecución en modo headless (sin interfaz gráfica) cuando está activado
         - Actualización del movimiento de los enemigos
+        - Gestión de colisiones entre enemigos y jugador
         
         No realiza ninguna actualización si el juego no está en ejecución (is_running=False).
         """
@@ -109,17 +110,17 @@ class Game:
         if not self.is_running:
             return
             
-        # Actualizar movimiento de enemigos
-        self._update_enemies()
+        current_time = pygame.time.get_ticks()
+            
+        # Actualizar movimiento de enemigos basado en la diferencia de tiempo
+        # Esta función se ejecuta independientemente de si seguimos una ruta o no
+        self._update_enemies(current_time)
         
         # Detectar colisiones entre jugador y enemigos
-        self._check_player_enemy_collision()
-        
-        # Si el jugador ha colisionado con un enemigo, no continuar con la actualización
-        if self.game_state.player_caught:
+        if self._check_player_enemy_collision():
+            # Si el jugador fue atrapado, no continuar con la actualización
+            # El método _check_player_enemy_collision ya reinicia la posición del jugador
             return
-            
-        current_time = pygame.time.get_ticks()
 
         # En modo headless, usar la ruta óptima
         if GameConfig.HEADLESS_MODE and self.best_path:
@@ -129,28 +130,38 @@ class Game:
                 if self.path_index < len(self.best_path):
                     # Mover al siguiente punto en la ruta
                     next_pos = self.best_path[self.path_index]
-                    self.game_state.player_pos = next_pos
-                    self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+                    
+                    # Verificar que no haya un enemigo en la posición a movernos
+                    if next_pos not in self.game_state.enemy_positions:
+                        self.game_state.player_pos = next_pos
+                        self.movement_matrix[next_pos[1]][next_pos[0]] += 1
 
-                    # Verificar si llegamos a la meta
-                    if next_pos == self.game_state.house_pos:
-                        print("¡Llegamos a la meta!")
-                        self.game_state.victory = True
-                        self.is_running = False
-                        GameConfig.HEADLESS_MODE = False
-                        
-                        # Visualizar análisis final si está disponible
-                        if hasattr(self.agent, 'plot_comprehensive_analysis'):
-                            self.agent.plot_comprehensive_analysis(
-                                self.game_state.initial_player_pos,
-                                self.game_state.house_pos,
-                                self.game_state.obstacles,
-                                save_path="analisis_final.png",
-                                show=True
-                            )
+                        # Verificar si llegamos a la meta
+                        if next_pos == self.game_state.house_pos:
+                            print("¡Llegamos a la meta!")
+                            self.game_state.victory = True
+                            self.is_running = False
+                            GameConfig.HEADLESS_MODE = False
+                            
+                            # Visualizar análisis final si está disponible
+                            if hasattr(self.agent, 'plot_comprehensive_analysis'):
+                                self.agent.plot_comprehensive_analysis(
+                                    self.game_state.initial_player_pos,
+                                    self.game_state.house_pos,
+                                    self.game_state.obstacles,
+                                    save_path="analisis_final.png",
+                                    show=True
+                                )
+                        else:
+                            self.path_index += 1
                     else:
-                        self.path_index += 1
-                        self.move_timer = current_time
+                        # Hay un enemigo en la posición, buscar una ruta alternativa
+                        # o esperar a que se mueva
+                        print("Enemigo en el camino. Recalculando ruta...")
+                        self.calculate_optimal_path()
+                        self.path_index = 0
+                        
+                    self.move_timer = current_time
                 else:
                     print("Ejecución rápida completada")
                     self.is_running = False
@@ -159,6 +170,10 @@ class Game:
             if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
                 self._make_random_move()
                 self.move_timer = current_time
+                
+            # Permitir que los enemigos se muevan durante la ejecución de la ruta
+            self._update_enemies()
+            self._check_player_enemy_collision()
 
         if self.game_state.victory:
             # Calcular la ruta óptima cuando llegamos a la meta
@@ -166,7 +181,13 @@ class Game:
                 self.calculate_optimal_path()
             return
 
-        # Obtener siguiente movimiento
+        # Verificar si tenemos un camino a seguir y estamos dentro de él
+        if self.current_path and self.path_index < len(self.current_path) - 1:
+            # Gestionar movimiento por ruta
+            self._follow_path(current_time)
+            return
+            
+        # Si no estamos siguiendo una ruta, obtener siguiente movimiento
         next_pos = self._get_next_move()
         if not next_pos:
             return
@@ -194,6 +215,7 @@ class Game:
         - Sigue un camino predefinido si existe
         - Utiliza árboles de decisión o movimientos aleatorios para generar nuevos movimientos
         - Actualiza la matriz de movimientos con la nueva posición
+        - Gestiona la interacción con enemigos durante el movimiento automático
         
         Returns:
             tuple o None: Las nuevas coordenadas de posición (x, y) o None si no se realizó movimiento
@@ -211,11 +233,43 @@ class Game:
         # Actualizar movimiento basado en el tiempo
         current_time = pygame.time.get_ticks()
         if current_time - self.move_timer > GameConfig.MOVE_DELAY:
+            # Permitir que los enemigos se muevan antes de decidir el próximo movimiento del jugador
+            self._update_enemies()
+            
+            # Verificar colisiones después del movimiento de enemigos
+            if self.game_state.player_caught:
+                # Si el jugador fue atrapado, no continuar con el movimiento
+                self.move_timer = current_time
+                return
+                
             # Si tenemos un camino predefinido, seguirlo
             if self.path_index < len(self.current_path) - 1:
                 self.path_index += 1
                 next_pos = self.current_path[self.path_index]
-                self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+                
+                # Verificar que no haya un enemigo en la posición antes de moverse
+                if next_pos in self.game_state.enemy_positions:
+                    # Recalcular el camino si hay un enemigo bloqueando
+                    print("Enemigo bloqueando la ruta. Recalculando...")
+                    
+                    # Intentar usar árbol de decisiones para encontrar una nueva ruta
+                    decision_tree = DecisionTree(self.game_state, self.movement_matrix)
+                    new_path = decision_tree.find_path(
+                        self.game_state.player_pos,
+                        self.game_state.house_pos
+                    )
+                    
+                    if new_path and len(new_path) > 1:
+                        self.current_path = new_path
+                        self.path_index = 0
+                        # No moverse en este frame, esperar al siguiente
+                    else:
+                        # Si no se encuentra una nueva ruta, intentar movimiento aleatorio
+                        self._make_random_move()
+                else:
+                    # Moverse al siguiente punto si no hay enemigos
+                    self.game_state.player_pos = next_pos
+                    self.movement_matrix[next_pos[1]][next_pos[0]] += 1
             else:
                 # Generar movimiento aleatorio o usar árbol de decisiones
                 if GameConfig.USE_DECISION_TREE and random.random() < 0.7:
@@ -231,28 +285,35 @@ class Game:
                     if smart_path and len(smart_path) > 1:
                         # Tomar solo el siguiente paso del camino inteligente
                         next_pos = smart_path[1]
-                        self.game_state.player_pos = next_pos
-                        self.movement_matrix[next_pos[1]][next_pos[0]] += 1
-                        if not self.current_path:
-                            self.current_path = [self.game_state.player_pos]
-                        self.current_path.append(next_pos)
+                        
+                        # Verificar que no haya un enemigo en la posición
+                        if next_pos not in self.game_state.enemy_positions:
+                            self.game_state.player_pos = next_pos
+                            self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+                            if not self.current_path:
+                                self.current_path = [self.game_state.player_pos]
+                            self.current_path.append(next_pos)
+                        else:
+                            # Si hay un enemigo, intentar otro movimiento
+                            self._make_random_move()
                     else:
                         # Si no se encuentra un camino, usar movimiento aleatorio
                         self._make_random_move()
                 else:
                     # Usar movimiento aleatorio
                     self._make_random_move()
-
+            
+            # Verificar colisiones después del movimiento del jugador
+            self._check_player_enemy_collision()
             self.move_timer = current_time
 
     def _make_random_move(self):
         """
-        Genera y ejecuta un movimiento aleatorio para el jugador.
+        Realiza un movimiento aleatorio para el jugador.
         
-        Este método privado:
-        - Genera un valor aleatorio para determinar la dirección del movimiento
-        - Utiliza los rangos definidos en GameConfig para determinar la dirección
-        - Verifica que el movimiento sea válido (dentro de los límites y sin obstáculos)
+        Este método:
+        - Genera una dirección aleatoria basada en los rangos configurados
+        - Verifica que el movimiento sea válido
         - Actualiza la posición del jugador y la matriz de movimientos
         - Añade la nueva posición al camino actual
         """
@@ -438,7 +499,13 @@ class Game:
             elif GameConfig.USE_DECISION_TREE:
                 decision_tree = DecisionTree(self.game_state, self.movement_matrix)
                 smart_path = decision_tree.find_path(
-                    self.game_state.player_pos,317)
+                    self.game_state.player_pos,
+                    self.game_state.house_pos
+                )
+                
+                if smart_path and len(smart_path) > 1:
+                    self.current_path = smart_path
+                    self.path_index = 0
         else:
             self.is_running = False
             # Si estamos entrenando, detener el entrenamiento
@@ -657,7 +724,12 @@ class Game:
 
     def visualize_heat_map(self):
         """
-        Visualiza el mapa de calor"""
+        Visualiza el mapa de calor generado durante el entrenamiento.
+        
+        Si el mapa de calor no ha sido entrenado, muestra un mensaje de error.
+        De lo contrario, muestra una representación visual del mapa de calor
+        con la ruta actual si está disponible.
+        """
         if not self.heat_map_trained:
             print("El mapa de calor no ha sido entrenado. No hay nada que visualizar.")
             return
@@ -676,6 +748,13 @@ class Game:
         )
         
     def toggle_edit_mode(self, mode):
+        """
+        Activa o desactiva un modo de edición.
+        
+        Args:
+            mode (str): Modo de edición a activar ('player', 'house', 'obstacles', 'enemies')
+                        Si ya está activo el mismo modo, lo desactiva.
+        """
         # Activa o desactiva un modo de edición
         if self.edit_mode == mode:
             self.edit_mode = None
@@ -1090,42 +1169,105 @@ class Game:
             self.is_training = False
             self.training_complete = True
             
-            # Actualizar estado final
-            # Actualizar estado final
-            if best_path:
-                print(f"Entrenamiento completo. Mejor ruta: {len(best_path)} pasos")
-                self.training_status = f"¡Completado! Mejor ruta: {len(best_path)} pasos"
-                # Preparar para mostrar la mejor ruta con una transición suave
-                self.game_state.player_pos = self.game_state.initial_player_pos
-                self.current_path = best_path
+    def _follow_path(self, current_time):
+        """
+        Gestiona el movimiento del jugador siguiendo una ruta preestablecida.
+        
+        Este método maneja:
+        - Movimiento del jugador según el tiempo y la ruta actual
+        - Detección de obstáculos y enemigos en el camino
+        - Recálculo de ruta cuando es necesario
+        - Detección de llegada a la meta
+        
+        Args:
+            current_time (int): Tiempo actual en milisegundos para sincronizar el movimiento
+        """
+        # Verificar si es momento de moverse
+        if current_time - self.move_timer <= GameConfig.MOVE_DELAY:
+            return
+            
+        # Avanzar al siguiente punto en la ruta
+        if self.path_index < len(self.current_path) - 1:
+            self.path_index += 1
+            next_pos = self.current_path[self.path_index]
+            
+            # Verificar si hay un enemigo en el camino
+            if next_pos in self.game_state.enemy_positions:
+                print("Enemigo detectado en el camino. Recalculando ruta...")
+                # Retroceder al punto anterior
+                self.path_index = max(0, self.path_index - 1)
+                
+                # Recalcular ruta
+                self._recalculate_path()
+                
+                # No moverse en este ciclo
+                self.move_timer = current_time
+                return
+                
+            # Mover al jugador a la siguiente posición
+            self.game_state.player_pos = next_pos
+            
+            # Actualizar matriz de movimiento
+            self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+            
+            # Verificar victoria
+            if next_pos == self.game_state.house_pos:
+                print("¡Llegamos a la meta!")
+                self.game_state.victory = True
+                self.is_running = False
+                
+            # Actualizar temporizador
+            self.move_timer = current_time
+        else:
+            # Llegamos al final del camino
+            if not self.game_state.victory:
+                print("Fin del camino sin llegar a la meta. Recalculando...")
+                self._recalculate_path()
+            
+    def _recalculate_path(self):
+        """
+        Recalcula la ruta desde la posición actual del jugador hasta la meta.
+        
+        Este método intenta encontrar una nueva ruta utilizando diferentes estrategias:
+        1. Árbol de decisiones con profundidad limitada
+        2. Mapa de calor si está entrenado
+        3. Movimiento aleatorio como último recurso
+        """
+        print("Recalculando ruta...")
+        
+        # Intentar con árbol de decisiones primero
+        decision_tree = DecisionTree(self.game_state, self.movement_matrix)
+        decision_tree.max_depth = 15  # Mayor profundidad para encontrar mejores caminos
+        
+        new_path = decision_tree.find_path(
+            self.game_state.player_pos,
+            self.game_state.house_pos
+        )
+        
+        if new_path and len(new_path) > 1:
+            print(f"Nueva ruta encontrada con árbol de decisiones: {len(new_path)} pasos")
+            self.current_path = new_path
+            self.path_index = 0
+            return
+            
+        # Si el mapa de calor está entrenado, intentar usarlo
+        if self.heat_map_trained:
+            heat_map_path = self.heat_map_pathfinder.find_path_with_heat_map(
+                self.game_state.player_pos,
+                self.game_state.house_pos
+            )
+            
+            if heat_map_path and len(heat_map_path) > 1:
+                print(f"Nueva ruta encontrada con mapa de calor: {len(heat_map_path)} pasos")
+                self.current_path = heat_map_path
                 self.path_index = 0
-                self.is_running = True
-                self.move_timer = pygame.time.get_ticks() + 1000  # Retardo para una transición suave
-                
-                # Mostrar análisis final del aprendizaje
-                if hasattr(self.agent, 'plot_comprehensive_analysis'):
-                    self.agent.plot_comprehensive_analysis(
-                        self.game_state.initial_player_pos,
-                        self.game_state.house_pos,
-                        self.game_state.obstacles,
-                        save_path="analisis_aprendizaje.png",
-                        show=self.show_training_visualization
-                    )
-            else:
-                print("Entrenamiento completo. No se encontró una ruta óptima.")
-                self.training_status = "No se encontró ruta óptima"
-                
-            # Actualizar visualización final
-            if self.show_training_visualization and best_path:
-                # Mostrar visualización de la mejor ruta
-                self.agent.plot_best_path(
-                    start=self.game_state.initial_player_pos,
-                    goal=self.game_state.house_pos,
-                    obstacles=self.game_state.obstacles,
-                    title="Mejor Ruta Encontrada"
-                )
+                return
+        
+        # Si no se encontró ninguna ruta válida, simplemente hacer un movimiento aleatorio
+        print("No se pudo encontrar una ruta válida. Utilizando movimiento aleatorio.")
+        self._make_random_move()
 
-    def _update_enemies(self):
+    def _update_enemies(self, current_time=None):
         """
         Actualiza el estado y posición de los enemigos.
         
@@ -1134,15 +1276,24 @@ class Game:
         - La detección del jugador por parte de los enemigos
         - La planificación de rutas para perseguir al jugador o interceptarlo
         - El comportamiento específico según el tipo de enemigo
+        
+        Args:
+            current_time (int, opcional): Tiempo actual en milisegundos para sincronizar el movimiento.
+                Si no se proporciona, se obtiene el tiempo actual.
         """
         # No actualizar si el juego no está en ejecución o ya se alcanzó la victoria
         if not self.is_running or self.game_state.victory:
             return
             
-        current_time = pygame.time.get_ticks()
+        # Si no se proporciona el tiempo actual, obtenerlo
+        if current_time is None:
+            current_time = pygame.time.get_ticks()
+        
+        # Calcular el tiempo transcurrido desde la última actualización
+        elapsed_time = self.clock.get_time() if hasattr(self.clock, 'get_time') else 16  # 16ms aproximadamente 60fps por defecto
         
         # Actualizar el temporizador de enemigos en el estado del juego
-        self.game_state.enemy_move_timer += self.clock.get_time() if hasattr(self.clock, 'get_time') else 16  # 16ms aproximadamente 60fps por defecto
+        self.game_state.enemy_move_timer += elapsed_time
         
         # Verificar si es momento de mover a los enemigos
         if self.game_state.enemy_move_timer >= GameConfig.ENEMY_MOVE_DELAY:
@@ -1646,10 +1797,13 @@ class Game:
         
         Si hay colisión, establece el estado game_state.player_caught a True
         lo que desencadenará el reinicio del nivel.
+        
+        Returns:
+            bool: True si hubo colisión y se manejó, False en caso contrario
         """
         # No verificar colisiones si el juego no está en ejecución o si ya ganó
         if not self.is_running or self.game_state.victory:
-            return
+            return False
             
         # Verificar si el jugador está en la misma posición que algún enemigo
         if self.game_state.player_pos in self.game_state.enemy_positions:
@@ -1668,5 +1822,12 @@ class Game:
             if self.current_path:
                 self.path_index = 0
                 
+                # Recalcular el camino ya que la posición ha cambiado
+                self._recalculate_path()
+                
             # Actualizar el temporizador de movimiento
             self.move_timer = pygame.time.get_ticks()
+            
+            return True  # Hubo colisión
+            
+        return False  # No hubo colisión
