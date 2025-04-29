@@ -209,30 +209,99 @@ class GameRenderer:
         - Un rectángulo de color como fallback si no hay imagen
         
         Los enemigos son elementos que el jugador debe evitar, funcionando como
-        obstáculos adicionales. A diferencia de los obstáculos normales, los
-        enemigos pueden tener una representación visual más distintiva y en 
-        versiones futuras podrían implementar comportamiento dinámico.
+        obstáculos adicionales. Los enemigos tienen diferentes tipos y comportamientos,
+        representados visualmente con colores distintos o indicadores direccionales.
         
-        El color de fallback para enemigos está definido en GameConfig.ENEMY_COLOR
-        y por defecto es rojo.
+        El color base para enemigos está definido en GameConfig.ENEMY_COLOR
+        y se modifican según el tipo y estado de cada enemigo.
         """
-        for enemy in self.game.game_state.enemies:
-            if self.enemy_img:
-                self.screen.blit(
-                    self.enemy_img,
-                    (
-                        enemy[0] * GameConfig.SQUARE_SIZE,
-                        enemy[1] * GameConfig.SQUARE_SIZE
-                    )
+        # Utilizar enemy_positions para compatibilidad o enemies para datos completos
+        if hasattr(self.game.game_state, 'enemies') and isinstance(self.game.game_state.enemies, dict):
+            # Nueva estructura: diccionario de enemigos con datos completos
+            for enemy_id, enemy_data in self.game.game_state.enemies.items():
+                pos = enemy_data['position']
+                enemy_type = enemy_data.get('type', 'perseguidor')
+                direction = enemy_data.get('direction', (0, 0))
+                
+                # Dibujar enemigo según su tipo
+                self._draw_enemy_at_position(pos, enemy_type, direction)
+        elif hasattr(self.game.game_state, 'enemy_positions') and self.game.game_state.enemy_positions:
+            # Estructura de compatibilidad: conjunto de posiciones
+            for pos in self.game.game_state.enemy_positions:
+                self._draw_enemy_at_position(pos)
+        else:
+            # Mantener compatibilidad con estructura antigua (solo posiciones)
+            for pos in self.game.game_state.enemies:
+                # Tratar de manejar el caso donde enemies es un conjunto de posiciones
+                try:
+                    if isinstance(pos, tuple) and len(pos) == 2:
+                        self._draw_enemy_at_position(pos)
+                except:
+                    # Si hay error, intentar usar como está
+                    self._draw_enemy_at_position(pos)
+    
+    def _draw_enemy_at_position(self, pos, enemy_type='perseguidor', direction=(0, 0)):
+        """
+        Dibuja un enemigo en la posición especificada con el tipo y dirección dados.
+        
+        Args:
+            pos (tuple): Posición (x, y) del enemigo
+            enemy_type (str): Tipo de enemigo ('perseguidor', 'bloqueador', 'patrulla', 'aleatorio')
+            direction (tuple): Dirección (dx, dy) hacia donde apunta el enemigo
+        """
+        # Seleccionar color según el tipo de enemigo
+        enemy_colors = {
+            'perseguidor': GameConfig.RED,               # Rojo para perseguidores
+            'bloqueador': (255, 128, 0),                 # Naranja para bloqueadores
+            'patrulla': (148, 0, 211),                   # Púrpura para patrullas
+            'aleatorio': (70, 130, 180)                  # Azul acero para aleatorios
+        }
+        enemy_color = enemy_colors.get(enemy_type, GameConfig.ENEMY_COLOR)
+        
+        x, y = pos
+        
+        if self.enemy_img:
+            # Dibujar imagen del enemigo
+            self.screen.blit(
+                self.enemy_img,
+                (x * GameConfig.SQUARE_SIZE, y * GameConfig.SQUARE_SIZE)
+            )
+            
+            # Añadir un indicador del tipo de enemigo (círculo pequeño de color)
+            indicator_radius = GameConfig.SQUARE_SIZE // 6
+            indicator_pos = (
+                x * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE - indicator_radius - 2,
+                y * GameConfig.SQUARE_SIZE + indicator_radius + 2
+            )
+            pygame.draw.circle(self.screen, enemy_color, indicator_pos, indicator_radius)
+        else:
+            # Dibujar rectángulo con el color según el tipo
+            rect = pygame.Rect(
+                x * GameConfig.SQUARE_SIZE,
+                y * GameConfig.SQUARE_SIZE,
+                GameConfig.SQUARE_SIZE,
+                GameConfig.SQUARE_SIZE
+            )
+            pygame.draw.rect(self.screen, enemy_color, rect)
+            
+            # Dibujar indicador de dirección si tiene dirección
+            if direction != (0, 0):
+                dx, dy = direction
+                center_x = x * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                center_y = y * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                
+                # Calcular punto final de la flecha de dirección
+                end_x = center_x + int(dx * GameConfig.SQUARE_SIZE * 0.3)
+                end_y = center_y + int(dy * GameConfig.SQUARE_SIZE * 0.3)
+                
+                # Dibujar línea de dirección
+                pygame.draw.line(
+                    self.screen,
+                    GameConfig.WHITE,
+                    (center_x, center_y),
+                    (end_x, end_y),
+                    2
                 )
-            else:
-                rect = pygame.Rect(
-                    enemy[0] * GameConfig.SQUARE_SIZE,
-                    enemy[1] * GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE
-                )
-                pygame.draw.rect(self.screen, GameConfig.ENEMY_COLOR, rect)
 
     def _draw_player(self):
         """

@@ -4,10 +4,16 @@ import math
 
 class AStar:
     """
-    Implementación del algoritmo A* (A-star) para encontrar caminos óptimos en el juego.
+    Implementación del algoritmo A* con bloqueo absoluto de casillas con enemigos.
     
-    IMPORTANTE: El personaje NO PUEDE pasar por casillas ocupadas por enemigos bajo
-    ninguna circunstancia. Esta restricción es absoluta y el algoritmo la garantiza.
+    IMPORTANTE: El personaje NUNCA podrá pasar por:
+    - Casillas ocupadas por enemigos
+    - Casillas adyacentes a enemigos (incluyendo diagonales)
+    - Obstáculos
+    
+    Esta implementación usa un radio de bloqueo muy amplio (4 casillas) y una
+    distancia mínima de seguridad (5 unidades) para garantizar que el personaje
+    mantenga una distancia estrictamente segura de los enemigos en todo momento.
     
     La clase implementa el algoritmo A*, un algoritmo de búsqueda informada que:
     - Encuentra la ruta más corta entre dos puntos en un grid
@@ -15,132 +21,150 @@ class AStar:
     - Garantiza encontrar el camino óptimo si existe
     - Tiene mejor rendimiento que algoritmos como Dijkstra para espacios grandes
     
-    Características principales:
-    - Integración con el estado del juego para verificar obstáculos y límites
-    - Uso de conjuntos abiertos y cerrados para rastrear nodos a explorar
-    - Implementación de la heurística de distancia Manhattan
-    - Estructura de datos para reconstruir el camino óptimo encontrado
-    
-    Complejidad:
-    - Tiempo: O(b^d) donde b es el factor de ramificación y d la profundidad
-    - Espacio: O(b^d) para almacenar los nodos explorados
-    
-    El algoritmo es especialmente eficiente para grids con pocos obstáculos o
-    cuando existe una ruta directa o casi directa entre el origen y el destino.
+    Características de esta implementación:
+    - Bloqueo absoluto de casillas con enemigos y sus adyacentes
+    - Tratamiento de casillas bloqueadas igual que obstáculos
+    - Garantía de que el personaje nunca pasará cerca de enemigos
+    - Preferencia por el camino más corto entre los caminos seguros
     """
 
-    # Constants for enemy avoidance
-    ENEMY_INFLUENCE_RADIUS = 4  # Radio de influencia del enemigo (ajustado para grid más grande)
-    MAX_DANGER_COST = 15.0      # Costo máximo de peligro cerca de enemigos
-    SAFETY_WEIGHT = 1.5         # Peso para balancear distancia vs seguridad (ajustado para mejor balance)
-    BLOCKED_ZONE_RADIUS = 1.0   # Radio de zona absolutamente bloqueada alrededor de enemigos (valor mínimo)
+    # Constantes de clase para configuración de seguridad
+    BLOCKED_ZONE_RADIUS = 4  # Radio de zona bloqueada alrededor de enemigos (en casillas)
+    MIN_SAFE_DISTANCE = 5    # Distancia mínima segura a enemigos (en unidades)
 
     def __init__(self, game_state):
         """
-        Inicializa el pathfinder A* con el estado del juego.
-        
-        Configura la instancia del algoritmo A* para trabajar con un estado de
-        juego específico, que proporciona información sobre los obstáculos,
-        límites del grid y otras entidades como enemigos.
+        Inicializa el pathfinder con el estado del juego.
+        Precalcula todas las posiciones bloqueadas.
         
         Args:
             game_state: Objeto GameState que contiene el estado actual del juego,
-                       incluyendo obstáculos y límites del grid.
+                       incluyendo obstáculos y enemigos.
         """
         self.game_state = game_state
+        # Precalcular todas las casillas bloqueadas
+        self.blocked_positions = self._calculate_blocked_positions()
 
-    def is_position_safe(self, pos):
+    def _calculate_blocked_positions(self):
         """
-        Verifica si una posición es segura (no ocupada por enemigos).
+        Calcula el conjunto de todas las posiciones bloqueadas:
+        - Obstáculos
+        - Enemigos
+        - Casillas adyacentes a enemigos (en las 8 direcciones)
         
-        Comprueba explícitamente si una posición está ocupada por un enemigo
-        o si está demasiado cerca de un enemigo (dentro de la zona bloqueada).
+        Returns:
+            set: Conjunto de todas las posiciones bloqueadas
+        """
+        blocked = set()
+        
+        # Agregar obstáculos
+        blocked.update(self.game_state.obstacles)
+        
+        # Agregar enemigos
+        blocked.update(self.game_state.enemies)
+        
+        # Agregar enemigos y sus zonas de bloqueo usando distancia euclidiana
+        for enemy_pos in self.game_state.enemies:
+            x_enemy, y_enemy = enemy_pos
+            # Bloquear posición del enemigo
+            blocked.add(enemy_pos)
+            
+            # Calcular zona de bloqueo usando distancia euclidiana precisa
+            # Usamos un rango ligeramente mayor para asegurar que capturamos todas las celdas relevantes
+            for dx in range(-self.BLOCKED_ZONE_RADIUS - 1, self.BLOCKED_ZONE_RADIUS + 2):
+                for dy in range(-self.BLOCKED_ZONE_RADIUS - 1, self.BLOCKED_ZONE_RADIUS + 2):
+                    x, y = x_enemy + dx, y_enemy + dy
+                    
+                    # Verificar límites del grid
+                    if not (0 <= x < GameConfig.GRID_WIDTH and 0 <= y < GameConfig.GRID_HEIGHT):
+                        continue
+                    
+                    # Calcular distancia euclidiana exacta
+                    distance = math.sqrt((x - x_enemy)**2 + (y - y_enemy)**2)
+                    
+                    # Bloquear si está dentro del radio (inclusive)
+                    if distance <= self.BLOCKED_ZONE_RADIUS:
+                        blocked.add((x, y))
+        
+        return blocked
+
+    def is_position_valid(self, pos):
+        """
+        Verifica si una posición es válida (no bloqueada).
+        
+        Una posición es válida si:
+        - Está dentro de los límites del grid
+        - No está en el conjunto de posiciones bloqueadas
         
         Args:
             pos (tuple): Posición (x, y) a verificar.
             
         Returns:
-            bool: True si la posición es segura, False si está ocupada por un enemigo
-                  o está demasiado cerca de uno.
+            bool: True si la posición es válida, False si está bloqueada.
         """
-        # Verificar si la posición está exactamente ocupada por un enemigo
-        if pos in self.game_state.enemies:
+        x, y = pos
+        # Verificar límites del grid
+        if not (0 <= x < GameConfig.GRID_WIDTH and 0 <= y < GameConfig.GRID_HEIGHT):
             return False
             
-        # Verificar si está dentro de la zona de bloqueo absoluto de algún enemigo
-        for enemy_pos in self.game_state.enemies:
-            distance = math.sqrt((pos[0] - enemy_pos[0])**2 + (pos[1] - enemy_pos[1])**2)
-            if distance <= self.BLOCKED_ZONE_RADIUS:
-                return False
-                
+        # Verificar que no sea una posición bloqueada
+        if pos in self.blocked_positions:
+            return False
+            
         return True
 
-    def calculate_enemy_influence(self, pos):
+    def _heuristic(self, pos1, pos2):
         """
-        Calcula la influencia total de los enemigos en una posición dada.
-        
-        Crea una "zona de peligro" alrededor de cada enemigo, donde el peligro
-        es mayor cuanto más cerca esté de un enemigo. El algoritmo considerará
-        estas zonas de peligro al calcular el camino óptimo.
+        Heurística simple de distancia Manhattan.
         
         Args:
-            pos (tuple): Posición (x, y) a evaluar.
+            pos1 (tuple): Primera posición (x1, y1).
+            pos2 (tuple): Segunda posición (x2, y2).
+            
+        Returns:
+            int: Distancia Manhattan entre los dos puntos.
         """
-        # Si la posición no es segura, retornar costo infinito
-        if not self.is_position_safe(pos):
-            return float('inf')
-            
-        total_influence = 0.0
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+
+    def _get_neighbors(self, pos):
+        """
+        Obtiene los vecinos válidos de una posición.
+        Solo considera las cuatro direcciones cardinales.
         
-        for enemy_pos in self.game_state.enemies:
-            # Usar distancia euclidiana para crear zonas circulares de influencia
-            distance = math.sqrt((pos[0] - enemy_pos[0])**2 + (pos[1] - enemy_pos[1])**2)
+        Args:
+            pos (tuple): Posición actual (x, y).
             
-            # Si está dentro del radio de influencia
-            if distance <= self.ENEMY_INFLUENCE_RADIUS:
-                # Influencia inversa a la distancia, normalizada
-                influence = (self.ENEMY_INFLUENCE_RADIUS - distance) / self.ENEMY_INFLUENCE_RADIUS
-                influence = influence * self.MAX_DANGER_COST
-                
-                # Tomar el mayor valor de influencia (caso de múltiples enemigos)
-                total_influence = max(total_influence, influence)
-                influence = influence * self.MAX_DANGER_COST
-                
-                # Tomar el mayor valor de influencia (caso de múltiples enemigos)
-                total_influence = max(total_influence, influence)
+        Returns:
+            list: Lista de posiciones válidas adyacentes.
+        """
+        x, y = pos
+        possible_neighbors = [
+            (x, y-1),  # Arriba
+            (x+1, y),  # Derecha
+            (x, y+1),  # Abajo
+            (x-1, y)   # Izquierda
+        ]
         
-        return total_influence
+        # Filtrar solo las posiciones válidas (dentro de límites y no bloqueadas)
+        return [pos for pos in possible_neighbors if self.is_position_valid(pos)]
 
     def find_path(self, start, goal):
         """
-        Encuentra el camino más corto entre dos puntos usando el algoritmo A*.
+        Encuentra un camino seguro desde start hasta goal.
         
-        Este método implementa la búsqueda A* completa, que:
-        1. Mantiene un conjunto de nodos abiertos para explorar
-        2. Mantiene un conjunto de nodos cerrados ya explorados
-        3. Utiliza una función heurística para estimar el costo restante
-        4. Combina el costo real (g_score) y el estimado (heurística) para priorizar nodos
-        5. Reconstruye el camino óptimo cuando se encuentra el objetivo
+        Usa el algoritmo A* pero garantiza que el camino NUNCA pasará
+        por casillas con enemigos o adyacentes a enemigos.
         
         Args:
-            start (tuple): Coordenadas (x, y) del punto de inicio.
-            goal (tuple): Coordenadas (x, y) del punto de destino (meta).
+            start (tuple): Posición inicial (x, y).
+            goal (tuple): Posición objetivo (x, y).
             
         Returns:
-            list o None: Lista de tuplas (x, y) representando el camino óptimo desde
-                        start hasta goal, en orden desde el inicio hasta el final.
-                        Si no se encuentra un camino válido, devuelve None.
-        
-        Complejidad:
-            Si h(n) ≤ d(n) (donde h es la heurística y d la distancia real),
-            la complejidad es O(b^d) en el peor caso, pero en la práctica suele
-            ser mucho más eficiente debido a la guía de la heurística.
+            list or None: Lista de posiciones que forman el camino si existe,
+                          None si no hay camino seguro posible.
         """
-        if not start or not goal:
-            return None
-            
-        # Verificar que las posiciones de inicio y final sean seguras
-        if not self.is_position_safe(start) or not self.is_position_safe(goal):
+        # Verificar que inicio y fin sean válidos
+        if not self.is_position_valid(start) or not self.is_position_valid(goal):
             return None
 
         # Conjuntos para el algoritmo
@@ -164,20 +188,13 @@ class AStar:
             open_set.remove(current)
             closed_set.add(current)
 
-            # Explorar vecinos
+            # Explorar vecinos válidos
             for neighbor in self._get_neighbors(current):
                 if neighbor in closed_set:
                     continue
 
-                # Calcular g_score tentativo con penalización por enemigos
-                enemy_cost = self.calculate_enemy_influence(neighbor)
-                
-                # Saltar posiciones no seguras (costo infinito)
-                if enemy_cost == float('inf'):
-                    continue
-                    
-                movement_cost = 1.0 + enemy_cost * self.SAFETY_WEIGHT
-                tentative_g_score = g_score[current] + movement_cost
+                # Costo uniforme para todas las casillas válidas
+                tentative_g_score = g_score[current] + 1
 
                 if neighbor not in open_set:
                     open_set.add(neighbor)
@@ -189,101 +206,19 @@ class AStar:
                 g_score[neighbor] = tentative_g_score
                 f_score[neighbor] = g_score[neighbor] + self._heuristic(neighbor, goal)
 
+        # No se encontró camino
         return None
-
-    def _heuristic(self, pos1, pos2):
-        """
-        Calcula una heurística mejorada que combina distancia y seguridad.
-        
-        Esta función mantiene la base de la distancia Manhattan pero incorpora
-        un factor adicional relacionado con la proximidad a los enemigos.
-        
-        La heurística sigue siendo admisible (nunca sobreestima el costo real)
-        pero ahora guía al algoritmo para preferir caminos más seguros.
-        
-        Args:
-            pos1 (tuple): Primera posición (x1, y1).
-            pos2 (tuple): Segunda posición (x2, y2).
-            
-        Returns:
-            float: Valor heurístico combinado (distancia + seguridad).
-        """
-        # Si la posición no es segura, retornar infinito
-        if not self.is_position_safe(pos1):
-            return float('inf')
-            
-        # Distancia Manhattan base
-        base_distance = abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
-        
-        # Factor de seguridad (influencia de enemigos)
-        # Solo evaluamos la posición actual, no la meta
-        danger_cost = self.calculate_enemy_influence(pos1)
-        
-        # Combinar distancia y seguridad manteniendo admisibilidad
-        return float(base_distance) + (danger_cost * 0.5)
-
-    def _get_neighbors(self, pos):
-        """
-        Obtiene los vecinos válidos de una posición en el grid.
-        
-        Este método determina qué celdas adyacentes son accesibles desde la
-        posición actual, considerando:
-        1. Los límites del grid (no salirse del mapa)
-        2. Los obstáculos (no atravesar paredes)
-        3. La proximidad a enemigos (evitar situaciones de peligro extremo)
-        
-        Solo considera movimientos en las cuatro direcciones cardinales:
-        arriba, derecha, abajo e izquierda (sin diagonales).
-        
-        Args:
-            pos (tuple): Posición actual (x, y).
-            
-        Returns:
-            list: Lista de tuplas (x, y) representando posiciones válidas
-                 adyacentes a la posición actual.
-        """
-        x, y = pos
-        possible_neighbors = [
-            (x, y - 1),  # Arriba
-            (x + 1, y),  # Derecha
-            (x, y + 1),  # Abajo
-            (x - 1, y)  # Izquierda
-        ]
-
-        # Filtrar vecinos válidos
-        valid_neighbors = []
-        for nx, ny in possible_neighbors:
-            # Verificar límites del grid
-            if (0 <= nx < GameConfig.GRID_WIDTH and
-                    0 <= ny < GameConfig.GRID_HEIGHT):
-                # Verificar que no sea un obstáculo
-                if (nx, ny) not in self.game_state.obstacles:
-                    # Verificar explícitamente que la posición sea segura (sin enemigos)
-                    if self.is_position_safe((nx, ny)):
-                        valid_neighbors.append((nx, ny))
-
-        return valid_neighbors
 
     def _reconstruct_path(self, came_from, current):
         """
-        Reconstruye el camino completo desde el nodo inicial hasta el nodo final.
-        
-        Después de que A* encuentra un camino al objetivo, este método reconstruye
-        la secuencia completa de pasos utilizando el diccionario de referencias que
-        almacena, para cada nodo, el nodo previo en el camino óptimo.
-        
-        El proceso comienza desde el nodo final (current) y retrocede hasta
-        el nodo inicial, siguiendo las referencias del diccionario came_from.
-        Luego invierte la lista para obtener el camino en orden desde el inicio.
+        Reconstruye el camino desde el inicio hasta el objetivo.
         
         Args:
-            came_from (dict): Diccionario que mapea cada nodo a su predecesor
-                             en el camino óptimo.
-            current (tuple): Nodo final (x, y) desde el que reconstruir el camino.
+            came_from (dict): Diccionario de referencias a nodos previos.
+            current (tuple): Nodo actual desde donde reconstruir.
             
         Returns:
-            list: Lista de tuplas (x, y) que representan el camino completo
-                 desde el nodo inicial hasta el nodo final, en orden.
+            list: Lista de posiciones que forman el camino.
         """
         path = [current]
         while current in came_from:

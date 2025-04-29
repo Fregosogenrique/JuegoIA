@@ -24,7 +24,9 @@ def test_enemy_avoidance():
     goal_pos = (15, 15)
     print(f"Posición inicial: {start_pos}")
     print(f"Posición objetivo: {goal_pos}")
+    astar = AStar(game_state)
     print(f"Radio de zona bloqueada: {AStar.BLOCKED_ZONE_RADIUS}")
+    print(f"Distancia mínima segura: {AStar.MIN_SAFE_DISTANCE}")
     
     # Caso 1: Enemigo directamente en el camino
     print("\n--- Caso 1: Enemigo en el camino directo ---")
@@ -52,8 +54,8 @@ def test_enemy_avoidance():
         print(f"Camino encontrado de longitud: {len(path)}")
         print(f"Distancia mínima al enemigo: {min_distance:.2f} (en posición {closest_point})")
         
-        if min_distance <= astar.BLOCKED_ZONE_RADIUS:
-            print(f"❌ ERROR: El camino pasa demasiado cerca del enemigo ({min_distance:.2f} < {astar.BLOCKED_ZONE_RADIUS})")
+        if min_distance <= AStar.MIN_SAFE_DISTANCE:
+            print(f"❌ ERROR: El camino pasa demasiado cerca del enemigo ({min_distance:.2f} < {AStar.MIN_SAFE_DISTANCE})")
             return False
         else:
             print("✅ El camino mantiene distancia segura del enemigo")
@@ -90,8 +92,8 @@ def test_enemy_avoidance():
         print(f"Camino encontrado de longitud: {len(path)}")
         print(f"Distancia mínima a enemigos: {min_distance:.2f} (punto {closest_point} a enemigo {closest_enemy})")
         
-        if min_distance <= astar.BLOCKED_ZONE_RADIUS:
-            print(f"❌ ERROR: El camino pasa demasiado cerca de un enemigo ({min_distance:.2f} < {astar.BLOCKED_ZONE_RADIUS})")
+        if min_distance <= AStar.MIN_SAFE_DISTANCE:
+            print(f"❌ ERROR: El camino pasa demasiado cerca de un enemigo ({min_distance:.2f} < {AStar.MIN_SAFE_DISTANCE})")
             return False
         else:
             print("✅ El camino mantiene distancia segura de todos los enemigos")
@@ -170,8 +172,8 @@ def test_enemy_avoidance():
         print(f"Camino encontrado de longitud: {len(path)}")
         print(f"Distancia mínima a enemigos en laberinto: {min_distance:.2f}")
         
-        if min_distance <= astar.BLOCKED_ZONE_RADIUS:
-            print(f"❌ ERROR: El camino pasa demasiado cerca de un enemigo ({min_distance:.2f} < {astar.BLOCKED_ZONE_RADIUS})")
+        if min_distance <= AStar.MIN_SAFE_DISTANCE:
+            print(f"❌ ERROR: El camino pasa demasiado cerca de un enemigo ({min_distance:.2f} < {AStar.MIN_SAFE_DISTANCE})")
             return False
         else:
             print("✅ El camino mantiene distancia segura de todos los enemigos")
@@ -182,7 +184,7 @@ def test_enemy_avoidance():
     print("\n=== RESULTADO FINAL ===")
     print("✅ Todas las pruebas pasaron exitosamente!")
     print("La implementación garantiza que el personaje nunca pasa por casillas ocupadas por enemigos")
-    print(f"Se mantiene una distancia mínima segura de {astar.BLOCKED_ZONE_RADIUS} unidades de los enemigos")
+    print(f"Se mantiene una distancia mínima segura de {AStar.MIN_SAFE_DISTANCE} unidades de los enemigos")
     print("El algoritmo encuentra rutas alternativas cuando hay enemigos bloqueando el camino directo")
     print("El algoritmo identifica correctamente cuando no hay camino seguro disponible")
     return True

@@ -111,6 +111,45 @@ class GameConfig:
     OBSTACLE_PERCENTAGE = 25
 
     #==========================================================================
+    # CONFIGURACIÓN DE ENEMIGOS
+    #==========================================================================
+    # Tiempo en milisegundos entre movimientos de los enemigos
+    # Valores más bajos = enemigos más rápidos
+    ENEMY_MOVE_DELAY = 200
+    
+    # Distancia máxima a la que un enemigo puede detectar al jugador
+    # Esta es la distancia en celdas (Manhattan) dentro de la cual el enemigo
+    # intentará perseguir al jugador usando pathfinding
+    ENEMY_DETECTION_RANGE = 8
+    
+    # Velocidad de movimiento de los enemigos relativa al jugador (1.0 = misma velocidad)
+    # Valores mayores a 1.0 hacen que los enemigos sean más rápidos que el jugador
+    ENEMY_SPEED_FACTOR = 0.8
+    
+    # El factor de agresividad determina qué tan probable es que el enemigo
+    # intente bloquear el camino hacia la casa en lugar de perseguir al jugador
+    # Rango 0.0 (sólo persigue al jugador) a 1.0 (sólo bloquea camino a la casa)
+    ENEMY_AGGRESSION_FACTOR = 0.5
+    
+    # Tipos de enemigos disponibles y su comportamiento:
+    # - "perseguidor": persigue directamente al jugador
+    # - "bloqueador": intenta bloquear el camino a la casa
+    # - "patrulla": se mueve en rutas de patrulla predefinidas
+    # - "aleatorio": se mueve en direcciones aleatorias
+    DEFAULT_ENEMY_TYPE = "perseguidor"
+    
+    # Rango de patrulla para enemigos tipo "patrulla"
+    # Define la distancia máxima a la que se generan puntos de patrulla aleatorios
+    ENEMY_PATROL_RADIUS = 3
+    
+    # Distancia mínima inicial entre enemigos y jugador al generar niveles
+    # Esto evita que los enemigos aparezcan demasiado cerca del jugador al inicio
+    ENEMY_MIN_PLAYER_DISTANCE = 4
+
+    #==========================================================================
+    # POSICIONES INICIALES
+    #==========================================================================
+    #==========================================================================
     # POSICIONES INICIALES
     #==========================================================================
     # Coordenadas iniciales del jugador en el grid como tupla (x, y).
@@ -123,8 +162,12 @@ class GameConfig:
     
     # Lista de tuplas (x, y) representando posiciones iniciales de enemigos.
     # Los enemigos actúan como obstáculos móviles o elementos a evitar.
-    # Lista vacía significa que no hay enemigos al inicio.
-    INITIAL_ENEMY_POSITIONS = []
+    # Se pueden agregar más posiciones para aumentar la dificultad.
+    INITIAL_ENEMY_POSITIONS = [
+        (6, 4),
+        (20, 8),
+        (15, 18)
+    ]
 
     #==========================================================================
     # COLORES BÁSICOS
