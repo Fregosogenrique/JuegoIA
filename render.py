@@ -5,10 +5,46 @@ import numpy as np
 
 
 class GameRenderer:
-    """Clase que maneja el renderizado del juego"""
+    """
+    Clase responsable de toda la visualización gráfica del juego.
+    
+    Esta clase encapsula toda la lógica de renderizado del juego, incluyendo:
+    - Dibujo del grid (cuadrícula) y elementos del juego
+    - Visualización del jugador, casa (meta), obstáculos y enemigos
+    - Representación visual de rutas y caminos calculados por algoritmos de IA
+    - Visualización de la matriz de movimiento como mapa de calor
+    - Interfaz de usuario con barra lateral, botones y estadísticas
+    - Mensajes de estado como victoria y progreso de entrenamiento
+    
+    El renderizador implementa un sistema de fallback para imágenes,
+    permitiendo usar representaciones alternativas cuando las imágenes
+    no están disponibles.
+    
+    La clase mantiene un registro de los elementos UI como botones para
+    permitir la detección de interacciones del usuario.
+    
+    Atributos:
+        screen: Superficie de pygame donde se renderiza el juego.
+        game: Referencia a la instancia principal del juego.
+        button_rects: Diccionario que mapea IDs de botones a sus rectángulos.
+        player_img: Imagen cargada para el jugador (o superficie fallback).
+        house_img: Imagen cargada para la casa (o superficie fallback).
+        enemy_img: Imagen cargada para los enemigos (o superficie fallback).
+    """
 
     def __init__(self, screen, game):
-        """Inicializa el renderizador del juego"""
+        """
+        Inicializa una nueva instancia del renderizador del juego.
+        
+        Configura la superficie de renderizado, establece la referencia al
+        controlador del juego, e intenta cargar las imágenes necesarias para
+        la visualización. Si las imágenes no pueden cargarse, se crean
+        superficies de fallback coloreadas.
+        
+        Args:
+            screen (pygame.Surface): Superficie principal de renderizado.
+            game (Game): Instancia del controlador principal del juego.
+        """
         self.screen = screen
         self.game = game
         self.button_rects = {}
@@ -16,8 +52,24 @@ class GameRenderer:
         # Cargar imágenes
         self.player_img = self._load_image(GameConfig.PLAYER_IMAGE)
         self.house_img = self._load_image(GameConfig.HOUSE_IMAGE)
+        self.enemy_img = self._load_image(GameConfig.ENEMY_IMAGE)
 
     def _load_image(self, filename):
+        """
+        Carga una imagen desde un archivo y la escala al tamaño de una celda.
+        
+        Intenta cargar la imagen especificada y redimensionarla para que coincida
+        con el tamaño de una celda del grid. Si ocurre algún error durante la carga
+        (archivo no encontrado, formato no válido, etc.), crea una superficie
+        de color blanco como alternativa.
+        
+        Args:
+            filename (str): Ruta relativa al archivo de imagen a cargar.
+            
+        Returns:
+            pygame.Surface: Imagen cargada y escalada, o una superficie de fallback
+            si la carga falla.
+        """
         try:
             img = pygame.image.load(filename)
             return pygame.transform.scale(img, (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
@@ -28,7 +80,26 @@ class GameRenderer:
             return fallback
 
     def render(self):
-        """Renderiza el juego completo"""
+        """
+        Renderiza el juego completo en la pantalla.
+        
+        Este método principal de renderizado coordina todo el proceso de visualización
+        en el siguiente orden:
+        
+        1. Limpieza de la pantalla
+        2. Dibujado del grid base
+        3. Visualización de la matriz de movimiento (mapa de calor) si está activa
+        4. Dibujado de obstáculos
+        5. Dibujado de enemigos
+        6. Visualización de rutas (cuando hay victoria)
+        7. Dibujado del jugador y la casa (meta)
+        8. Mensajes de victoria o estado de entrenamiento
+        9. Dibujado de la barra lateral con controles y estadísticas
+        
+        Este orden específico garantiza que los elementos se superpongan correctamente,
+        donde los elementos más importantes (jugador, casa) aparecen por encima
+        de elementos de fondo (grid, obstáculos).
+        """
         # Limpiar pantalla
         self.screen.fill(GameConfig.WHITE)
 
@@ -41,6 +112,9 @@ class GameRenderer:
 
         # Dibujar obstáculos
         self._draw_obstacles()
+        
+        # Dibujar enemigos
+        self._draw_enemies()
 
         # Dibujar rutas si es necesario (antes del jugador y la casa)
         if self.game.game_state.victory:
@@ -64,7 +138,20 @@ class GameRenderer:
         pygame.display.flip()
 
     def _draw_grid(self):
-        """Dibuja el grid y todos sus elementos"""
+        """
+        Dibuja el grid (cuadrícula) base del juego.
+        
+        Crea la estructura visual básica del juego mediante:
+        1. Un rectángulo de fondo que cubre toda el área del grid
+        2. Líneas verticales y horizontales que dividen el grid en celdas
+        
+        El grid proporciona la referencia visual para el posicionamiento
+        de todos los elementos del juego, incluyendo jugador, casa, obstáculos
+        y enemigos.
+        
+        Las líneas del grid se dibujan con un color más claro que el fondo
+        para crear suficiente contraste visual sin distraer del contenido principal.
+        """
         # Dibujar fondo de la cuadrícula
         grid_rect = pygame.Rect(
             0, 0,
@@ -93,7 +180,17 @@ class GameRenderer:
             )
 
     def _draw_obstacles(self):
-        """Dibuja los obstáculos"""
+        """
+        Dibuja los obstáculos en el grid.
+        
+        Renderiza todos los obstáculos definidos en el estado del juego como
+        rectángulos sólidos. Cada obstáculo ocupa exactamente una celda del grid.
+        Los obstáculos son elementos permanentes del entorno que bloquean el 
+        movimiento del jugador y afectan los cálculos de rutas de los algoritmos.
+        
+        El color de los obstáculos está definido en GameConfig.OBSTACLE_COLOR
+        y por defecto son de color gris.
+        """
         for obstacle in self.game.game_state.obstacles:
             rect = pygame.Rect(
                 obstacle[0] * GameConfig.SQUARE_SIZE,
@@ -103,8 +200,56 @@ class GameRenderer:
             )
             pygame.draw.rect(self.screen, GameConfig.OBSTACLE_COLOR, rect)
 
+    def _draw_enemies(self):
+        """
+        Dibuja los enemigos en el grid.
+        
+        Renderiza todos los enemigos definidos en el estado del juego, utilizando:
+        - La imagen cargada para enemigos, si está disponible
+        - Un rectángulo de color como fallback si no hay imagen
+        
+        Los enemigos son elementos que el jugador debe evitar, funcionando como
+        obstáculos adicionales. A diferencia de los obstáculos normales, los
+        enemigos pueden tener una representación visual más distintiva y en 
+        versiones futuras podrían implementar comportamiento dinámico.
+        
+        El color de fallback para enemigos está definido en GameConfig.ENEMY_COLOR
+        y por defecto es rojo.
+        """
+        for enemy in self.game.game_state.enemies:
+            if self.enemy_img:
+                self.screen.blit(
+                    self.enemy_img,
+                    (
+                        enemy[0] * GameConfig.SQUARE_SIZE,
+                        enemy[1] * GameConfig.SQUARE_SIZE
+                    )
+                )
+            else:
+                rect = pygame.Rect(
+                    enemy[0] * GameConfig.SQUARE_SIZE,
+                    enemy[1] * GameConfig.SQUARE_SIZE,
+                    GameConfig.SQUARE_SIZE,
+                    GameConfig.SQUARE_SIZE
+                )
+                pygame.draw.rect(self.screen, GameConfig.ENEMY_COLOR, rect)
+
     def _draw_player(self):
-        """Dibuja el jugador"""
+        """
+        Dibuja al jugador en su posición actual.
+        
+        Renderiza al jugador en la posición almacenada en el estado del juego,
+        utilizando:
+        - La imagen cargada para el jugador, si está disponible
+        - Un rectángulo de color como fallback si no hay imagen
+        
+        El jugador es el elemento principal controlado por el usuario o los
+        algoritmos de IA. Su posición se actualiza durante el juego y determina
+        cuándo se alcanza la meta (casa).
+        
+        El color de fallback para el jugador está definido en GameConfig.PLAYER_COLOR
+        y por defecto es azul.
+        """
         if self.game.game_state.player_pos:
             if self.player_img:
                 self.screen.blit(
@@ -124,7 +269,21 @@ class GameRenderer:
                 pygame.draw.rect(self.screen, GameConfig.PLAYER_COLOR, rect)
 
     def _draw_house(self):
-        """Dibuja la casa"""
+        """
+        Dibuja la casa (meta) en su posición establecida.
+        
+        Renderiza la casa en la posición almacenada en el estado del juego,
+        utilizando:
+        - La imagen cargada para la casa, si está disponible
+        - Un rectángulo de color como fallback si no hay imagen
+        
+        La casa representa la meta del juego, el punto que el jugador debe
+        alcanzar. Cuando el jugador llega a esta posición, se activa el estado
+        de victoria.
+        
+        El color de fallback para la casa está definido en GameConfig.HOUSE_COLOR
+        y por defecto es verde.
+        """
         if self.game.game_state.house_pos:
             if self.house_img:
                 self.screen.blit(
@@ -144,7 +303,22 @@ class GameRenderer:
                 pygame.draw.rect(self.screen, GameConfig.HOUSE_COLOR, rect)
 
     def _draw_paths(self):
-        """Dibuja las rutas"""
+        """
+        Dibuja las rutas calculadas en el grid.
+        
+        Este método visualiza la mejor ruta encontrada por los algoritmos de
+        pathfinding o IA (almacenada en best_path). La visualización consiste en:
+        - Líneas que conectan puntos consecutivos de la ruta
+        - Un borde negro para mejor visibilidad
+        - Color verde para la ruta principal
+        
+        Las líneas se dibujan desde el centro de cada celda al centro de la siguiente,
+        creando un camino visual continuo. Esta visualización solo se activa cuando
+        el jugador ha alcanzado la meta (estado de victoria).
+        
+        La representación visual utiliza líneas de diferente grosor para crear
+        un efecto de profundidad y mejor legibilidad.
+        """
         # Dibujar la mejor ruta si existe
         if self.game.best_path:
             # Dibujar líneas verdes para la mejor ruta
@@ -178,7 +352,23 @@ class GameRenderer:
                 )
 
     def _draw_movement_matrix(self):
-        """Dibuja el mapa de calor basado en la matriz de movimiento"""
+        """
+        Dibuja el mapa de calor basado en la matriz de movimiento.
+        
+        Visualiza la frecuencia de visitas a cada celda del grid mediante:
+        - Rectángulos semi-transparentes con colores que varían según la intensidad
+        - Valores numéricos que muestran la cantidad exacta de visitas
+        
+        La intensidad del color se calcula en relación al valor máximo en la matriz.
+        Los colores progresan a través de una escala predefinida en GameConfig.HEAT_COLORS,
+        generalmente desde amarillo (baja intensidad) hasta rojo oscuro (alta intensidad).
+        
+        Esta visualización ayuda a entender los patrones de movimiento del jugador
+        o algoritmos, mostrando qué áreas son más visitadas durante la exploración.
+        
+        Este método solo tiene efecto si GameConfig.SHOW_MOVEMENT_MATRIX es True
+        y la matriz contiene valores mayores que cero.
+        """
         if not self.game.movement_matrix.any():  # Si la matriz está vacía
             return
 
@@ -222,7 +412,21 @@ class GameRenderer:
                     self.screen.blit(text, text_rect)
 
     def _draw_training_status(self):
-        """Dibuja el estado actual del entrenamiento si está en progreso"""
+        """
+        Dibuja el estado actual del entrenamiento si está en progreso.
+        
+        Muestra información sobre el proceso de entrenamiento activo mediante:
+        - Un texto con información de progreso (iteración actual/total)
+        - Un fondo semitransparente para mejor legibilidad
+        - Mensajes adicionales de estado si están disponibles
+        
+        Esta información se coloca en la parte superior central de la pantalla
+        para proporcionar retroalimentación inmediata sobre el progreso del
+        entrenamiento sin interrumpir la visualización del juego.
+        
+        Este método solo tiene efecto si hay un entrenamiento activo
+        (game.is_training es True).
+        """
         if not hasattr(self.game, 'is_training') or not self.game.is_training:
             return
             
@@ -261,7 +465,20 @@ class GameRenderer:
             self.screen.blit(status_text, status_rect)
 
     def _draw_victory_message(self):
-        """Dibuja el mensaje de victoria"""
+        """
+        Dibuja el mensaje de victoria cuando el jugador alcanza la meta.
+        
+        Muestra un mensaje de felicitación al jugador mediante:
+        - Un texto grande y destacado ("¡Felicidades!")
+        - Un fondo semitransparente para realzar el mensaje
+        
+        El mensaje se coloca en la parte superior central de la pantalla
+        para ser inmediatamente visible sin obstruir la visualización
+        de la ruta completa.
+        
+        Este método solo se activa cuando el jugador ha alcanzado la meta
+        (game_state.victory es True).
+        """
         font = pygame.font.SysFont(None, 48)
         text = font.render("¡Felicidades!", True, GameConfig.BLACK)
 
@@ -363,6 +580,7 @@ class GameRenderer:
             ("headless", "Entrenamiento (H)"),
             ("edit_house", "Editar Casa (C)"),
             ("edit_obstacles", "Editar Obstáculos (O)"),
+            ("edit_enemies", "Editar Enemigos (E)"),
             ("clear_obstacles", "Limpiar Obstáculos (L)")
         ]
 

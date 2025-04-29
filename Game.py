@@ -7,10 +7,43 @@ from DecisionTree import DecisionTree
 from config import GameConfig
 from render import GameRenderer
 from ADB import RandomRoute
-
+from HeatMapPathfinding import HeatMapPathfinding
 
 class Game:
+    """
+    Clase principal que controla la lógica del juego y la interfaz de usuario.
+    
+    Esta clase maneja la inicialización del juego, la gestión del estado del juego,
+    el procesamiento de entradas del usuario, la visualización, y la integración
+    con varios algoritmos de IA para encontrar rutas óptimas en el entorno del juego.
+    
+    Características principales:
+    - Inicialización y configuración del juego
+    - Manejo del estado del juego y la lógica de movimiento
+    - Procesamiento de eventos de usuario (teclado y ratón)
+    - Integración con algoritmos de IA (árboles de decisión, Q-learning, mapas de calor)
+    - Visualización del estado del juego y datos de entrenamiento
+    - Modos de edición para modificar el entorno del juego
+    
+    Atributos:
+        screen: Superficie de pygame para renderizar el juego.
+        game_state: Instancia de GameState que almacena el estado actual del juego.
+        movement_matrix: Matriz numpy que registra la frecuencia de movimientos.
+        is_running: Indicador de si el juego está en ejecución.
+        edit_mode: Modo de edición actual (None, 'player', 'house', 'obstacles', 'enemies').
+        current_path: Lista de posiciones que forman el camino actual.
+        best_path: Mejor camino encontrado por los algoritmos de IA.
+        agent: Agente de IA utilizado para entrenar y encontrar rutas.
+        heat_map_pathfinder: Objeto para pathfinding basado en mapas de calor.
+        renderer: Objeto encargado de la visualización del juego.
+    """
     def __init__(self):
+        """
+        Inicializa una nueva instancia del juego.
+        
+        Configura la pantalla de pygame, inicializa el estado del juego, matrices de movimiento,
+        variables de control, rutas, agentes de IA, y el renderizador.
+        """
         # Iniciar pygame
         pygame.init()
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
@@ -45,10 +78,27 @@ class Game:
         self.visible_executions = 0
         self.invisible_executions = 0
 
+        # Inicializar pathfinding con mapa de calor
+        self.heat_map_pathfinder = HeatMapPathfinding(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
+        self.use_heat_map = False  # Indica si se debe usar el mapa de calor para pathfinding
+        self.heat_map_trained = False  # Indica si el mapa de calor ha sido entrenado
+        self.heat_map_training_iterations = 500  # Número de iteraciones para entrenamiento
+
         # Inicializar renderizador
         self.renderer = GameRenderer(self.screen, self)
 
     def update(self):
+        """
+        Actualiza el estado del juego en cada ciclo del bucle principal.
+        
+        Este método maneja:
+        - El avance del juego basado en el tiempo
+        - El movimiento del jugador según la ruta actual o algoritmos de IA
+        - La verificación de victoria al alcanzar la meta
+        - Ejecución en modo headless (sin interfaz gráfica) cuando está activado
+        
+        No realiza ninguna actualización si el juego no está en ejecución (is_running=False).
+        """
         # Actualizar estado del juego
         if not self.is_running:
             return
@@ -119,6 +169,19 @@ class Game:
             self.calculate_optimal_path()
 
     def _get_next_move(self):
+        """
+        Determina y ejecuta el siguiente movimiento del jugador.
+        
+        Este método privado:
+        - Verifica si el jugador ha llegado a la meta
+        - Determina el siguiente movimiento basado en el tiempo transcurrido
+        - Sigue un camino predefinido si existe
+        - Utiliza árboles de decisión o movimientos aleatorios para generar nuevos movimientos
+        - Actualiza la matriz de movimientos con la nueva posición
+        
+        Returns:
+            tuple o None: Las nuevas coordenadas de posición (x, y) o None si no se realizó movimiento
+        """
         # Verificar si llegamos a la meta
         if self.game_state.player_pos == self.game_state.house_pos:
             self.game_state.victory = True
@@ -167,6 +230,16 @@ class Game:
             self.move_timer = current_time
 
     def _make_random_move(self):
+        """
+        Genera y ejecuta un movimiento aleatorio para el jugador.
+        
+        Este método privado:
+        - Genera un valor aleatorio para determinar la dirección del movimiento
+        - Utiliza los rangos definidos en GameConfig para determinar la dirección
+        - Verifica que el movimiento sea válido (dentro de los límites y sin obstáculos)
+        - Actualiza la posición del jugador y la matriz de movimientos
+        - Añade la nueva posición al camino actual
+        """
         # Realiza un movimiento aleatorio usando los rangos de config
         move_value = random.randint(1, 20)
         current_pos = self.game_state.player_pos
@@ -197,7 +270,15 @@ class Game:
 
     def run_headless(self):
         """
-        Ejecuta el proceso de aprendizaje en segundo plano y muestra la mejor ruta
+        Ejecuta el proceso de aprendizaje en segundo plano y muestra la mejor ruta.
+        
+        Este método:
+        - Inicia un proceso de aprendizaje automático en segundo plano
+        - Configura callbacks para actualizar la interfaz durante el entrenamiento
+        - Reinicia la posición del jugador a la inicial
+        - Muestra el progreso del entrenamiento en la interfaz
+        - Al finalizar, muestra la mejor ruta encontrada
+        - Genera visualizaciones del análisis del aprendizaje si está disponible
         """
         # Iniciar el proceso de aprendizaje
         print("Iniciando proceso de aprendizaje...")
@@ -264,14 +345,30 @@ class Game:
 
     def calculate_optimal_path(self):
         """
-        Calcula la ruta óptima usando:
+        Calcula la ruta óptima usando diferentes algoritmos en orden de prioridad.
+        
+        El método intenta diferentes estrategias en el siguiente orden:
         1. Primero intenta usar el mejor camino del agente Q-learning si existe
-        2. Como respaldo, usa el árbol de decisiones
+        2. Luego intenta usar el camino del mapa de calor si está entrenado
+        3. Como última opción, usa el árbol de decisiones
+        
+        La mejor ruta encontrada se almacena en self.best_path.
         """
         # Si el agente de Q-learning tiene un mejor camino, usarlo
         if self.agent.best_path:
             self.best_path = self.agent.best_path
             return
+        
+        # Si el mapa de calor está entrenado, intentar usarlo
+        if self.heat_map_trained:
+            heat_map_path = self.heat_map_pathfinder.find_path_with_heat_map(
+                self.game_state.player_pos,
+                self.game_state.house_pos
+            )
+            
+            if heat_map_path:
+                self.best_path = heat_map_path
+                return
             
         # Si no, usar el árbol de decisiones como respaldo
         decision_tree = DecisionTree(self.game_state, self.movement_matrix)
@@ -283,7 +380,20 @@ class Game:
             self.game_state.house_pos
         )
 
+
     def toggle_game(self):
+        """
+        Inicia o detiene la ejecución del juego.
+        
+        Si el juego no está en ejecución, lo inicia y:
+        - Reinicia el índice de camino y el temporizador de movimiento
+        - Usa el mejor camino del agente si está disponible
+        - Si el mapa de calor está entrenado, intenta usarlo
+        - Como alternativa, usa el árbol de decisiones
+        
+        Si el juego está en ejecución, lo detiene y también detiene cualquier
+        entrenamiento en curso.
+        """
         # Inicia o detiene el juego
         if not self.is_running:
             self.is_running = True
@@ -298,16 +408,21 @@ class Game:
                 self.best_path = self.agent.best_path
                 self.current_path = self.best_path
                 self.path_index = 0
+            # Si el mapa de calor está entrenado, intentar usarlo
+            elif self.heat_map_trained and self.use_heat_map:
+                heat_map_path = self.heat_map_pathfinder.find_path_with_heat_map(
+                    self.game_state.player_pos,
+                    self.game_state.house_pos
+                )
+                
+                if heat_map_path and len(heat_map_path) > 1:
+                    self.current_path = heat_map_path
+                    self.path_index = 0
             # Si no, intentar usar el árbol de decisiones
             elif GameConfig.USE_DECISION_TREE:
                 decision_tree = DecisionTree(self.game_state, self.movement_matrix)
                 smart_path = decision_tree.find_path(
-                    self.game_state.player_pos,
-                    self.game_state.house_pos
-                )
-                if smart_path and len(smart_path) > 1:
-                    self.current_path = smart_path
-                    self.path_index = 0
+                    self.game_state.player_pos,317)
         else:
             self.is_running = False
             # Si estamos entrenando, detener el entrenamiento
@@ -315,6 +430,19 @@ class Game:
                 self.stop_training()
 
     def reset_game(self):
+        """
+        Reinicia el estado del juego a sus valores iniciales.
+        
+        Este método:
+        - Restaura la posición del jugador a la inicial
+        - Limpia el camino actual y reinicia el índice
+        - Reinicia la matriz de movimiento a ceros
+        - Reinicia el estado de victoria
+        - Restaura los enemigos a sus posiciones iniciales
+        - Detiene cualquier entrenamiento en curso
+        
+        Nota: No reinicia el mapa de calor para permitir su uso en múltiples ejecuciones.
+        """
         # Reinicia el juego
         # Reiniciar posición del jugador
         self.game_state.player_pos = self.game_state.initial_player_pos
@@ -328,17 +456,51 @@ class Game:
 
         # Reiniciar victoria
         self.game_state.victory = False
+        
+        # Reiniciar enemigos a la configuración inicial
+        self.game_state.enemies = set(GameConfig.INITIAL_ENEMY_POSITIONS)
 
         # Detener cualquier entrenamiento en curso
         if self.is_training:
             self.stop_training()
+            
+        # No reiniciar el mapa de calor automáticamente
+        # para permitir usarlo en múltiples ejecuciones
 
     def generate_new_obstacles(self):
+        """
+        Genera nuevos obstáculos aleatorios en el tablero de juego.
+        
+        Limpia todos los obstáculos existentes y llama al método de generación
+        de obstáculos del GameState para crear un nuevo conjunto de obstáculos
+        aleatorios.
+        """
         # Genera nuevos obstáculos aleatorios
         self.game_state.obstacles.clear()
         self.game_state.generate_obstacles()
+        
+    def clear_enemies(self):
+        """
+        Elimina todos los enemigos del juego.
+        
+        Vacía el conjunto de enemigos en el estado del juego y muestra un
+        mensaje de confirmación.
+        """
+        # Limpia todos los enemigos del juego
+        self.game_state.enemies.clear()
+        print("Todos los enemigos han sido eliminados")
 
     def toggle_obstacle(self, pos):
+        """
+        Agrega o remueve un obstáculo en la posición especificada.
+        
+        Si ya existe un obstáculo en la posición, lo elimina.
+        Si no existe un obstáculo, lo agrega siempre que la posición
+        no esté ocupada por el jugador o la casa.
+        
+        Args:
+            pos (tuple): Coordenadas (x, y) donde se agregará o eliminará el obstáculo
+        """
         # Agrega o remueve un obstáculo en la posición dada
         # Verificar que no sea la posición del jugador o la casa
         if pos == self.game_state.player_pos or pos == self.game_state.house_pos:
@@ -351,12 +513,153 @@ class Game:
             if pos != self.game_state.player_pos and pos != self.game_state.house_pos:
                 self.game_state.obstacles.add(pos)
 
+    def reset_heat_map(self):
+        """
+        Reinicia el mapa de calor y lo marca como no entrenado.
+        
+        Este método restablece el estado del objeto HeatMapPathfinding a sus
+        valores iniciales y actualiza el indicador de entrenamiento.
+        Muestra un mensaje de confirmación.
+        """
+        self.heat_map_pathfinder.reset()
+        self.heat_map_trained = False
+        print("Mapa de calor reiniciado")
+
+    def train_heat_map(self, iterations=None):
+        """
+        Entrena el mapa de calor usando el estado actual del juego.
+        
+        Este método inicia el entrenamiento del mapa de calor con la configuración
+        actual del juego, incluyendo obstáculos y enemigos. Muestra el progreso
+        durante el entrenamiento y actualiza la interfaz.
+        
+        Args:
+            iterations (int, opcional): Número de iteraciones para el entrenamiento.
+                Si no se proporciona, usa el valor por defecto establecido en la clase.
+        
+        El método configura un callback para mostrar el progreso y puede ser
+        interrumpido por el usuario durante la ejecución.
+        """
+        if iterations is not None:
+            self.heat_map_training_iterations = iterations
+            
+        print(f"Iniciando entrenamiento del mapa de calor con {self.heat_map_training_iterations} iteraciones...")
+        
+        # Configurar callback para actualizar interfaz durante entrenamiento
+        def training_callback(iteration, total, path, best_path, progress):
+            # Actualizar estado en la interfaz
+            self.training_progress = progress
+            self.training_status = f"Entrenando mapa de calor: {iteration}/{total}"
+            
+            # Actualizar cada 10 iteraciones para no ralentizar demasiado
+            if iteration % 10 == 0 or iteration == total:
+                # Actualizar eventos de pygame para mantener la interfaz responsiva
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        return False  # Detener entrenamiento
+                        
+                # Renderizar para mostrar progreso
+                self.renderer.render()
+                pygame.display.flip()
+                
+            return True  # Continuar entrenamiento
+        
+        # Entrenar mapa de calor
+        self.is_training = True
+        try:
+            # Ejecutar entrenamiento
+            best_path = self.heat_map_pathfinder.train(
+                self.game_state.initial_player_pos,
+                self.game_state.house_pos,
+                self.game_state.obstacles,
+                self.game_state.enemies,
+                self.heat_map_training_iterations,
+                training_callback
+            )
+            
+            # Actualizar estado
+            if best_path:
+                self.best_path = best_path
+                self.heat_map_trained = True
+                print(f"Entrenamiento completado. Mejor ruta encontrada: {len(best_path)} pasos")
+            else:
+                print("Entrenamiento completado pero no se encontró una ruta válida")
+        finally:
+            self.is_training = False
+
+    def use_heat_map_path(self):
+        """
+        Configura el juego para usar el camino basado en el mapa de calor.
+        
+        Si el mapa de calor no está entrenado, inicia automáticamente el entrenamiento.
+        Si se encuentra un camino válido, configura el juego para seguir este camino
+        y lo muestra en la interfaz.
+        
+        El método actualiza:
+        - current_path con la ruta encontrada
+        - path_index a 0 para comenzar desde el principio
+        - is_running a True para iniciar el movimiento
+        - use_heat_map a True para indicar que se está usando el mapa de calor
+        """
+        if not self.heat_map_trained:
+            print("El mapa de calor no ha sido entrenado. Entrenando ahora...")
+            self.train_heat_map()
+            
+        # Encontrar camino usando el mapa de calor
+        path = self.heat_map_pathfinder.find_path_with_heat_map(
+            self.game_state.player_pos,
+            self.game_state.house_pos,
+            avoid_cycles=True
+        )
+        
+        if path:
+            print(f"Camino encontrado con mapa de calor: {len(path)} pasos")
+            self.current_path = path
+            self.path_index = 0
+            self.is_running = True
+            self.move_timer = pygame.time.get_ticks()
+            self.use_heat_map = True
+        else:
+            print("No se pudo encontrar un camino usando el mapa de calor")
+
+    def visualize_heat_map(self):
+        """
+        Visualiza el mapa de calor"""
+        if not self.heat_map_trained:
+            print("El mapa de calor no ha sido entrenado. No hay nada que visualizar.")
+            return
+            
+        # Obtener camino actual si existe para visualizarlo
+        path = None
+        if self.use_heat_map and self.current_path:
+            path = self.current_path
+            
+        # Visualizar mapa de calor
+        self.heat_map_pathfinder.visualize_heat_map(
+            start_pos=self.game_state.player_pos,
+            goal_pos=self.game_state.house_pos,
+            path=path,
+            title="Mapa de Calor - Pesos de Recorrido"
+        )
+        
     def toggle_edit_mode(self, mode):
         # Activa o desactiva un modo de edición
         if self.edit_mode == mode:
             self.edit_mode = None
         else:
             self.edit_mode = mode
+            
+        # Mensaje de información según el modo
+        if self.edit_mode:
+            mode_descriptions = {
+                "player": "Jugador - Haz clic para colocar el jugador",
+                "house": "Casa - Haz clic para colocar la casa",
+                "obstacles": "Obstáculos - Haz clic para agregar/eliminar obstáculos",
+                "enemies": "Enemigos - Haz clic para agregar/eliminar enemigos"
+            }
+            print(f"Modo de edición: {mode_descriptions.get(self.edit_mode, self.edit_mode)}")
+        else:
+            print("Modo de edición desactivado")
 
     def _handle_keydown(self, key):
         # Maneja eventos de teclado
@@ -378,11 +681,37 @@ class Game:
         elif key == pygame.K_c:
             # Modo edición: Casa
             self.toggle_edit_mode('house')
+        elif key == pygame.K_e:
+            # Modo edición: Enemigos
+            self.toggle_edit_mode('enemies')
         elif key == pygame.K_g:
             # Generar nuevos obstáculos
             self.generate_new_obstacles()
+        elif key == pygame.K_m:
+            # Entrenar y usar el mapa de calor
+            self.train_heat_map()
+        elif key == pygame.K_v:
+            # Visualizar el mapa de calor
+            self.visualize_heat_map()
+        elif key == pygame.K_n:
+            # Usar ruta generada con mapa de calor
+            self.use_heat_map_path()
 
     def handle_click(self, pos):
+        """
+        Maneja los eventos de clic del ratón en la interfaz del juego.
+        
+        Este método procesa los clics del usuario, diferenciando entre:
+        - Clics en botones de la interfaz (barra lateral)
+        - Clics en el grid del juego durante diferentes modos de edición
+        
+        Dependiendo de dónde se haga clic y el modo actual, se ejecutarán
+        diferentes acciones como iniciar/detener el juego, modificar el entorno,
+        o cambiar entre modos de edición.
+        
+        Args:
+            pos (tuple): Coordenadas (x, y) del clic del ratón en píxeles
+        """
         # Maneja los clics del mouse
         print(f"\nClic recibido en posición: {pos}")
         print(f"Modo de edición actual: {self.edit_mode}")
@@ -412,9 +741,23 @@ class Game:
         elif clicked_button == "edit_obstacles":
             self.edit_mode = "obstacles"
             print("Modo de edición: Obstáculos")
+        elif clicked_button == "edit_enemies":
+            self.edit_mode = "enemies"
+            print("Modo de edición: Enemigos")
         elif clicked_button == "clear_obstacles":
             self.game_state.obstacles.clear()
             print("Obstáculos limpiados")
+        elif clicked_button == "clear_enemies":
+            self.game_state.enemies.clear()
+            print("Enemigos limpiados")
+        elif clicked_button == "train_heat_map":
+            self.train_heat_map()
+        elif clicked_button == "use_heat_map":
+            self.use_heat_map_path()
+        elif clicked_button == "visualize_heat_map":
+            self.visualize_heat_map()
+        elif clicked_button == "reset_heat_map":
+            self.reset_heat_map()
         elif self.edit_mode:
             # Verificar que el clic esté dentro del grid
             grid_width = GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE
@@ -453,6 +796,17 @@ class Game:
                             print(f"Obstáculo añadido en: {grid_pos}")
                         else:
                             print(f"No se puede añadir obstáculo en {grid_pos}: posición ocupada por jugador o casa")
+                elif self.edit_mode == "enemies":
+                    if grid_pos in self.game_state.enemies:
+                        self.game_state.enemies.remove(grid_pos)
+                        print(f"Enemigo removido en: {grid_pos}")
+                    else:
+                        # Usar el método de validación en GameState
+                        if self.game_state.is_valid_enemy_position(grid_pos):
+                            self.game_state.enemies.add(grid_pos)
+                            print(f"Enemigo añadido en: {grid_pos}")
+                        else:
+                            print(f"No se puede añadir enemigo en {grid_pos}: posición inválida")
         else:
             print("No se realizó ninguna acción")
 
