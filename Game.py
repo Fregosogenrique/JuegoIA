@@ -1701,7 +1701,7 @@ class Game:
             enemy_pos: Posición actual del enemigo (x, y)
             
         Returns:
-            tuple: Posición objetivo (x, y) para la interceptación
+            tuple: Posición objetivo (x, y) para la intercepción
         """
         player_pos = self.game_state.player_pos
         house_pos = self.game_state.house_pos
