@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador">
+      <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -82,14 +83,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1738260310620</updated>
-    </task>
-    <task id="LOCAL-00001" summary="Version beta Juego 1">
-      <option name="closed" value="true" />
-      <created>1738260757495</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1738260757495</updated>
     </task>
     <task id="LOCAL-00002" summary="Version beta Juego 1&#10;Para entregar 04/02/25">
       <option name="closed" value="true" />
@@ -467,7 +460,23 @@
       <option name="project" value="LOCAL" />
       <updated>1745947774972</updated>
     </task>
-    <option name="localTasksCounter" value="49" />
+    <task id="LOCAL-00049" summary="Version 2.5 Se agregan agentes">
+      <option name="closed" value="true" />
+      <created>1747064348867</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1747064348867</updated>
+    </task>
+    <task id="LOCAL-00050" summary="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador">
+      <option name="closed" value="true" />
+      <created>1747066508421</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1747066508422</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -498,6 +507,8 @@
     <MESSAGE value="Version 2.4.3, presenta bugs de desarrollo" />
     <MESSAGE value="Version 2.4.4, Se optimiza metodo aleatorio" />
     <MESSAGE value="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro" />
-    <option name="LAST_COMMIT_MESSAGE" value="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro" />
+    <MESSAGE value="Version 2.5 Se agregan agentes" />
+    <MESSAGE value="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador" />
+    <option name="LAST_COMMIT_MESSAGE" value="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador" />
   </component>
 </project>

@@ -366,10 +366,6 @@ class Game:
             if not self.current_path:
                 self.current_path = [self.game_state.initial_player_pos]
             self.current_path.append(next_pos)
-            
-            if not self.current_path:
-                self.current_path = [self.game_state.initial_player_pos]
-            self.current_path.append(next_pos)
 
     def run_headless(self):
         """
@@ -902,8 +898,6 @@ class Game:
             print("Modo de reposicionamiento del avatar activado. Haz clic en una posición válida.")
         elif clicked_button == "use_heat_map":
             self.use_heat_map_path()
-            self.edit_mode = "player"
-            print("Modo de reposicionamiento del avatar activado. Haz clic en una posición válida.")
         elif clicked_button == "use_heat_map":
             self.use_heat_map_path()
         elif clicked_button == "visualize_heat_map":
@@ -1524,9 +1518,6 @@ class Game:
         # Si el juego está en estado game_over, no mover
         if self.game_over:
             return current_pos
-        # Si el juego está en estado game_over, no mover
-        if self.game_over:
-            return current_pos
 
         # Verificar si el objetivo está dentro del rango de detección
         manhattan_distance = abs(current_pos[0] - target_pos[0]) + abs(current_pos[1] - target_pos[1])
@@ -1546,70 +1537,11 @@ class Game:
             if next_pos == self.game_state.player_pos:
                 self.game_over = True
                 print("¡Game Over! El enemigo ha atrapado al jugador")
-                
-            return next_pos
-            
-            # Verificar si el siguiente movimiento colisiona con el jugador
-            if next_pos == self.game_state.player_pos:
-                self.game_over = True
-                print("¡Game Over! El enemigo ha atrapado al jugador")
             
             return next_pos
-            
-        # Si no se pudo encontrar una ruta, intentar movimiento directo
-        # Determinar dirección hacia el objetivo
-        dx = 0
-        dy = 0
         
-        # Mover en X
-        if current_pos[0] < target_pos[0]:
-            dx = 1
-        elif current_pos[0] > target_pos[0]:
-            dx = -1
-            
-        # Mover en Y
-        if current_pos[1] < target_pos[1]:
-            dy = 1
-        elif current_pos[1] > target_pos[1]:
-            dy = -1
-        
-        # Intentar movimientos en el siguiente orden: 
-        # 1. Movimiento diagonal (si ambos dx y dy no son 0)
-        # 2. Movimiento horizontal (dx)
-        # 3. Movimiento vertical (dy)
-        # 4. Cualquier movimiento válido adyacente
-        
-        # Lista de posibles movimientos en orden de prioridad
-        possible_moves = []
-        
-        # Añadir movimiento diagonal si ambos dx y dy no son 0
-        if dx != 0 and dy != 0:
-            possible_moves.append((current_pos[0] + dx, current_pos[1] + dy))
-            
-        # Añadir movimiento horizontal
-        if dx != 0:
-            possible_moves.append((current_pos[0] + dx, current_pos[1]))
-            
-        # Añadir movimiento vertical
-        if dy != 0:
-            possible_moves.append((current_pos[0], current_pos[1] + dy))
-            
-        # Añadir movimientos diagonales restantes
-        if dx != 0 or dy != 0:
-            possible_moves.append((current_pos[0] + dx, current_pos[1] - dy))
-            possible_moves.append((current_pos[0] - dx, current_pos[1] + dy))
-            
-        # Añadir movimientos cardinales restantes
-        possible_moves.append((current_pos[0] - 1, current_pos[1]))
-        possible_moves.append((current_pos[0] + 1, current_pos[1]))
-        possible_moves.append((current_pos[0], current_pos[1] - 1))
-        possible_moves.append((current_pos[0], current_pos[1] + 1))
-        
-        # Probar cada movimiento en orden
-        for move in possible_moves:
-            # Verificar que el movimiento sea válido
-            if self._is_valid_enemy_move(move, current_pos):
-                return move
+        # Si no se pudo encontrar una ruta, intentar movimiento aleatorio
+        return self._random_enemy_move(enemy_id, current_pos)
                 
         # Si no se encontró ningún movimiento válido, quedarse en la posición actual
         return current_pos
