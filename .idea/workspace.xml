@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4.4, Se optimiza metodo aleatorio" />
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -36,7 +38,6 @@
   &quot;associatedIndex&quot;: 0
 }</component>
   <component name="ProjectId" id="2sML55FpRWnQ8GRtUTMvoiK8nGs" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -69,7 +70,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-4f4e415b4190-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.26053.29" />
+        <option value="bundled-python-sdk-348a24fa61fa-5312c7369657-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-251.23774.444" />
       </set>
     </attachedChunks>
   </component>
@@ -410,7 +411,63 @@
       <option name="project" value="LOCAL" />
       <updated>1744047722808</updated>
     </task>
-    <option name="localTasksCounter" value="42" />
+    <task id="LOCAL-00042" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745940111292</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1745940111292</updated>
+    </task>
+    <task id="LOCAL-00043" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745940118543</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1745940118543</updated>
+    </task>
+    <task id="LOCAL-00044" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745940874955</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1745940874955</updated>
+    </task>
+    <task id="LOCAL-00045" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745945920246</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1745945920246</updated>
+    </task>
+    <task id="LOCAL-00046" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745946653379</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1745946653379</updated>
+    </task>
+    <task id="LOCAL-00047" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745947563279</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1745947563279</updated>
+    </task>
+    <task id="LOCAL-00048" summary="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro">
+      <option name="closed" value="true" />
+      <created>1745947774972</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1745947774972</updated>
+    </task>
+    <option name="localTasksCounter" value="49" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -440,6 +497,7 @@
     <MESSAGE value="Version 2.4.2, Se  agrega un modulo de pruebas para el manejo de la muestra de un mapa de calor de cuando el usuario recorre el mapa de forma aprendida, pero existen bucles" />
     <MESSAGE value="Version 2.4.3, presenta bugs de desarrollo" />
     <MESSAGE value="Version 2.4.4, Se optimiza metodo aleatorio" />
-    <option name="LAST_COMMIT_MESSAGE" value="Version 2.4.4, Se optimiza metodo aleatorio" />
+    <MESSAGE value="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro" />
+    <option name="LAST_COMMIT_MESSAGE" value="Version 2.4.4, Se optimiza metodo aleatorio, se establecen valores de recompensa, ademas se agregan los enemigos y un parametro de penalizacion por zona de peligro" />
   </component>
 </project>
