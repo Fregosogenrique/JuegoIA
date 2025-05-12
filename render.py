@@ -650,6 +650,7 @@ class GameRenderer:
             ("edit_house", "Editar Casa (C)"),
             ("edit_obstacles", "Editar Obstáculos (O)"),
             ("edit_enemies", "Editar Enemigos (E)"),
+            ("reposition_avatar", "Reposicionar Avatar"),
             ("clear_obstacles", "Limpiar Obstáculos (L)")
         ]
 

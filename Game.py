@@ -48,6 +48,10 @@ class Game:
         pygame.init()
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
         pygame.display.set_caption("Simulación de Movimiento con Visualización de Datos")
+        
+        # Variables para control de ratio de movimiento y game over
+        self.step_counter = 0
+        self.game_over = False
 
         # Inicializar estado del juego
         self.game_state = GameState(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
@@ -56,6 +60,10 @@ class Game:
         # Inicializar enemigos con comportamiento dinámico si hay soporte para ello
         if hasattr(self, '_initialize_enemies'):
             self._initialize_enemies(3)  # Crear 3 enemigos por defecto
+
+        # Contador de pasos del avatar para controlar el movimiento de enemigos (2:1)
+        self.step_counter = 0
+        self.game_over = False
 
         # Inicializar matriz de movimiento
         self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
@@ -351,6 +359,14 @@ class Game:
             # Actualizar posición y matriz
             self.game_state.player_pos = next_pos
             self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+            
+            # Incrementar contador de pasos del avatar para control del ratio 2:1
+            self.step_counter += 1
+            
+            if not self.current_path:
+                self.current_path = [self.game_state.initial_player_pos]
+            self.current_path.append(next_pos)
+            
             if not self.current_path:
                 self.current_path = [self.game_state.initial_player_pos]
             self.current_path.append(next_pos)
@@ -547,8 +563,10 @@ class Game:
         # Reiniciar matriz de movimiento
         self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
 
-        # Reiniciar victoria
+        # Reiniciar victoria y variables de control
         self.game_state.victory = False
+        self.step_counter = 0
+        self.game_over = False
         
         # Reiniciar enemigos
         if hasattr(self.game_state, 'enemies') and isinstance(self.game_state.enemies, dict):
@@ -878,6 +896,14 @@ class Game:
                 self.game_state.enemy_positions.clear()
             self.game_state.enemies.clear()
             print("Enemigos limpiados")
+        elif clicked_button == "reposition_avatar":
+            # Activar modo de reposicionamiento del avatar
+            self.edit_mode = "player"
+            print("Modo de reposicionamiento del avatar activado. Haz clic en una posición válida.")
+        elif clicked_button == "use_heat_map":
+            self.use_heat_map_path()
+            self.edit_mode = "player"
+            print("Modo de reposicionamiento del avatar activado. Haz clic en una posición válida.")
         elif clicked_button == "use_heat_map":
             self.use_heat_map_path()
         elif clicked_button == "visualize_heat_map":
@@ -1285,17 +1311,65 @@ class Game:
         - La detección del jugador por parte de los enemigos
         - La planificación de rutas para perseguir al jugador o interceptarlo
         - El comportamiento específico según el tipo de enemigo
+        - Control del ratio de movimiento (1 paso de enemigo por cada 2 del jugador)
         
         Args:
             current_time (int, opcional): Tiempo actual en milisegundos para sincronizar el movimiento.
                 Si no se proporciona, se obtiene el tiempo actual.
         """
         # No actualizar si el juego no está en ejecución o ya se alcanzó la victoria
-        if not self.is_running or self.game_state.victory:
+        if not self.is_running or self.game_state.victory or self.game_over:
+            return
+            
+        # Control del ratio de movimiento 2:1 (jugador:enemigo)
+        # Los enemigos se mueven solo cuando el contador de pasos del jugador es par
+        if self.step_counter % 2 != 0:
             return
             
         # Si no se proporciona el tiempo actual, obtenerlo
+        if current_time is None:
+            current_time = pygame.time.get_ticks()
+            
+        # Actualizar cada enemigo usando A* para encontrar el camino hacia el jugador
+        for enemy_id, enemy_data in list(self.game_state.enemies.items()):
+            current_pos = enemy_data['position']
+            
+            # Determinar objetivo según tipo de enemigo
+            if enemy_data['type'] == 'perseguidor':
+                target_pos = self.game_state.player_pos
+            elif enemy_data['type'] == 'bloqueador':
+                target_pos = self._calculate_intercept_position(current_pos)
+            elif enemy_data['type'] == 'patrulla':
+                # Usar lógica de patrulla existente
+                next_pos = self._move_patrol_enemy(enemy_id, current_pos)
+                continue
+            else:  # aleatorio u otro tipo
+                next_pos = self._random_enemy_move(enemy_id, current_pos)
+                continue
+            
+            # Calcular siguiente movimiento usando A*
+            path = self._find_path_for_enemy(current_pos, target_pos)
+            
+            if path and len(path) > 1:
+                next_pos = path[1]  # El siguiente punto en el camino
+                
+                if self._is_valid_enemy_move(next_pos):
+                    # Actualizar posición del enemigo
+                    self.game_state.enemy_positions.remove(current_pos)
+                    self.game_state.enemies[enemy_id]['position'] = next_pos
+                    self.game_state.enemy_positions.add(next_pos)
                     
+                    # Actualizar dirección del enemigo para visualización
+                    dx = next_pos[0] - current_pos[0]
+                    dy = next_pos[1] - current_pos[1]
+                    self.game_state.enemies[enemy_id]['direction'] = (dx, dy)
+                    
+                    # Verificar colisión con el jugador
+                    if next_pos == self.game_state.player_pos:
+                        self.game_over = True
+                        print("¡Game Over! El enemigo ha atrapado al jugador")
+                        return
+        
     def _follow_path(self, current_time=None):
         """
         Gestiona el movimiento del jugador siguiendo una ruta preestablecida.
@@ -1348,6 +1422,9 @@ class Game:
             
             # Actualizar matriz de movimiento
             self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+            
+            # Incrementar contador de pasos del avatar para el ratio 2:1 de movimiento
+            self.step_counter += 1
             
             # Verificar victoria
             if next_pos == self.game_state.house_pos:
@@ -1444,6 +1521,13 @@ class Game:
         Returns:
             tuple: Nueva posición (x, y) o None si no hay movimiento válido
         """
+        # Si el juego está en estado game_over, no mover
+        if self.game_over:
+            return current_pos
+        # Si el juego está en estado game_over, no mover
+        if self.game_over:
+            return current_pos
+
         # Verificar si el objetivo está dentro del rango de detección
         manhattan_distance = abs(current_pos[0] - target_pos[0]) + abs(current_pos[1] - target_pos[1])
         
@@ -1456,7 +1540,21 @@ class Game:
         
         # Si se encontró una ruta con más de un punto, tomar el siguiente paso
         if path and len(path) > 1:
-            return path[1]  # El primer punto es la posición actual
+            next_pos = path[1]  # El primer punto es la posición actual
+            
+            # Verificar si el siguiente movimiento colisiona con el jugador
+            if next_pos == self.game_state.player_pos:
+                self.game_over = True
+                print("¡Game Over! El enemigo ha atrapado al jugador")
+                
+            return next_pos
+            
+            # Verificar si el siguiente movimiento colisiona con el jugador
+            if next_pos == self.game_state.player_pos:
+                self.game_over = True
+                print("¡Game Over! El enemigo ha atrapado al jugador")
+            
+            return next_pos
             
         # Si no se pudo encontrar una ruta, intentar movimiento directo
         # Determinar dirección hacia el objetivo
@@ -1603,7 +1701,7 @@ class Game:
             
         # Calcular el siguiente paso hacia el punto objetivo
         return self._calculate_enemy_move(enemy_id, current_pos, target_point)
-                    
+
     def _find_path_for_enemy(self, start_pos, target_pos):
         """
         Encuentra una ruta desde la posición inicial hasta el objetivo usando A*.
@@ -1615,27 +1713,14 @@ class Game:
         Returns:
             list: Lista de coordenadas (x, y) que forman la ruta, o None si no se encontró ruta
         """
-        # Implementación simplificada de A*
-        # Conjunto de nodos abiertos y cerrados
-        open_set = set([start_pos])
+        # Implementación del algoritmo A*
+        open_set = {start_pos}
         closed_set = set()
-        
-        # Diccionario para reconstruir el camino
         came_from = {}
-        
-        # Costo acumulado desde el inicio a cada nodo
         g_score = {start_pos: 0}
-        
-        # Costo estimado total (g + h) para cada nodo
         f_score = {start_pos: self._manhattan_distance(start_pos, target_pos)}
         
-        # Máximo número de iteraciones para evitar bucles infinitos
-        max_iterations = 100
-        iterations = 0
-        
-        while open_set and iterations < max_iterations:
-            iterations += 1
-            
+        while open_set:
             # Encontrar el nodo con menor f_score en open_set
             current = min(open_set, key=lambda pos: f_score.get(pos, float('inf')))
             
@@ -1647,37 +1732,29 @@ class Game:
                     path.append(current)
                 path.reverse()
                 return path
-                
-            # Mover el nodo actual de open a closed
+            
             open_set.remove(current)
             closed_set.add(current)
             
-            # Explorar vecinos (arriba, derecha, abajo, izquierda)
-            neighbors = [
-                (current[0], current[1] - 1),  # arriba
-                (current[0] + 1, current[1]),  # derecha
-                (current[0], current[1] + 1),  # abajo
-                (current[0] - 1, current[1])   # izquierda
-            ]
-            
-            for neighbor in neighbors:
-                # Ignorar vecinos inválidos o ya procesados
-                if not self._is_valid_enemy_move(neighbor, current) or neighbor in closed_set:
+            # Examinar vecinos (4 direcciones)
+            for dx, dy in [(0,1), (1,0), (0,-1), (-1,0)]:
+                neighbor = (current[0] + dx, current[1] + dy)
+                
+                if not self._is_valid_enemy_move(neighbor) or neighbor in closed_set:
                     continue
-                    
-                # Costo tentativo desde el inicio hasta el vecino a través del nodo actual
+                
                 tentative_g_score = g_score[current] + 1
                 
-                # Este camino es mejor que cualquier anterior encontrado para este vecino
-                if neighbor not in open_set or tentative_g_score < g_score.get(neighbor, float('inf')):
-                    came_from[neighbor] = current
-                    g_score[neighbor] = tentative_g_score
-                    f_score[neighbor] = tentative_g_score + self._manhattan_distance(neighbor, target_pos)
-                    
-                    if neighbor not in open_set:
-                        open_set.add(neighbor)
+                if neighbor not in open_set:
+                    open_set.add(neighbor)
+                elif tentative_g_score >= g_score.get(neighbor, float('inf')):
+                    continue
+                
+                came_from[neighbor] = current
+                g_score[neighbor] = tentative_g_score
+                f_score[neighbor] = g_score[neighbor] + self._manhattan_distance(neighbor, target_pos)
         
-        # Si no se encontró una ruta, devolver None
+        # No se encontró camino
         return None
 
     def _manhattan_distance(self, pos1, pos2):
@@ -1883,7 +1960,8 @@ class Game:
         if self.game_state.player_pos in self.game_state.enemy_positions:
             # Jugador atrapado por un enemigo
             self.game_state.player_caught = True
-            print("¡El jugador ha sido atrapado por un enemigo!")
+            self.game_over = True  # Activar game over
+            print("¡Game Over! El jugador ha sido atrapado por un enemigo!")
             
             # Esperar un momento antes de reiniciar
             pygame.time.delay(1000)  # Esperar 1 segundo
