@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador">
-      <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -83,14 +83,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1738260310620</updated>
-    </task>
-    <task id="LOCAL-00002" summary="Version beta Juego 1&#10;Para entregar 04/02/25">
-      <option name="closed" value="true" />
-      <created>1738268169359</created>
-      <option name="number" value="00002" />
-      <option name="presentableId" value="LOCAL-00002" />
-      <option name="project" value="LOCAL" />
-      <updated>1738268169359</updated>
     </task>
     <task id="LOCAL-00003" summary="Version beta Juego 1&#10;Para entregar 04/02/25">
       <option name="closed" value="true" />
@@ -476,7 +468,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747066508422</updated>
     </task>
-    <option name="localTasksCounter" value="51" />
+    <task id="LOCAL-00051" summary="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador">
+      <option name="closed" value="true" />
+      <created>1747067086629</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1747067086629</updated>
+    </task>
+    <option name="localTasksCounter" value="52" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

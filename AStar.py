@@ -60,11 +60,26 @@ class AStar:
         # Agregar obstáculos
         blocked.update(self.game_state.obstacles)
         
-        # Agregar enemigos
-        blocked.update(self.game_state.enemies)
+        # Procesar enemigos del nuevo formato de GameState
+        if hasattr(self.game_state, 'enemy_positions') and self.game_state.enemy_positions:
+            # Usar el conjunto de posiciones de enemigos si está disponible
+            blocked.update(self.game_state.enemy_positions)
+            enemy_positions = self.game_state.enemy_positions
+        elif isinstance(self.game_state.enemies, dict):
+            # Extraer posiciones del diccionario de enemigos
+            enemy_positions = set()
+            for enemy_id, enemy_data in self.game_state.enemies.items():
+                if isinstance(enemy_data, dict) and 'position' in enemy_data:
+                    enemy_pos = enemy_data['position']
+                    enemy_positions.add(enemy_pos)
+                    blocked.add(enemy_pos)
+        else:
+            # Formato antiguo (conjunto directo de posiciones)
+            blocked.update(self.game_state.enemies)
+            enemy_positions = self.game_state.enemies
         
-        # Agregar enemigos y sus zonas de bloqueo usando distancia euclidiana
-        for enemy_pos in self.game_state.enemies:
+        # Agregar zonas de bloqueo alrededor de los enemigos usando distancia euclidiana
+        for enemy_pos in enemy_positions:
             x_enemy, y_enemy = enemy_pos
             # Bloquear posición del enemigo
             blocked.add(enemy_pos)

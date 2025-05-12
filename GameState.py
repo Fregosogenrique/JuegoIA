@@ -487,6 +487,33 @@ class GameState:
             
         return False
         
+    def move_player(self, dx, dy):
+        """
+        Mueve al jugador en la dirección especificada.
+        
+        Args:
+            dx (int): Cambio en la posición x (-1, 0, 1)
+            dy (int): Cambio en la posición y (-1, 0, 1)
+            
+        Returns:
+            bool: True si el movimiento fue exitoso, False en caso contrario
+        """
+        new_pos = (self.player_pos[0] + dx, self.player_pos[1] + dy)
+        if self.is_valid_move(new_pos):
+            self.player_pos = new_pos
+            
+            # Verificar colisión con enemigos después del movimiento
+            if self.check_player_collision():
+                self.player_caught = True
+                return False
+                
+            # Verificar si llegamos a la casa
+            if self.player_pos == self.house_pos:
+                self.victory = True
+                
+            return True
+        return False
+    
     def check_player_collision(self):
         """
         Verifica si el jugador ha colisionado con algún enemigo.
