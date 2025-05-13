@@ -52,7 +52,7 @@ class GameConfig:
     
     # Tiempo en milisegundos entre movimientos del jugador en modo normal.
     # Valores más bajos = movimiento más rápido.
-    MOVE_DELAY = 100
+    MOVE_DELAY = 50  # Hacer al jugador más rápido
     
     # Tiempo en milisegundos entre movimientos en modo headless (sin interfaz).
     # Usado durante ejecuciones rápidas y entrenamientos.
@@ -92,7 +92,7 @@ class GameConfig:
     #==========================================================================
     # NOTA: MOVE_DELAY está duplicado. Se mantiene por compatibilidad pero debería
     # usarse la versión de la sección de temporización.
-    MOVE_DELAY = 100  # Duplicado, ver definición anterior
+    MOVE_DELAY = 50  # Actualizado para hacer al jugador más rápido
     
     # Controla si se muestran valores numéricos en el grid que indican 
     # la frecuencia de visitas a cada celda. Útil para visualizar patrones de movimiento.
@@ -115,21 +115,21 @@ class GameConfig:
     #==========================================================================
     # Tiempo en milisegundos entre movimientos de los enemigos
     # Valores más bajos = enemigos más rápidos
-    ENEMY_MOVE_DELAY = 200
+    ENEMY_MOVE_DELAY = 250  # Ajustado a 5 veces MOVE_DELAY (50ms) para movimiento 1:5
     
     # Distancia máxima a la que un enemigo puede detectar al jugador
     # Esta es la distancia en celdas (Manhattan) dentro de la cual el enemigo
     # intentará perseguir al jugador usando pathfinding
-    ENEMY_DETECTION_RANGE = 6  # Reducido de 8 para dar más espacio al jugador
+    ENEMY_DETECTION_RANGE = 2  # Reducido de 3 para dar muchísimo más espacio al jugador
     
     # Velocidad de movimiento de los enemigos relativa al jugador (1.0 = misma velocidad)
     # Valores mayores a 1.0 hacen que los enemigos sean más rápidos que el jugador
-    ENEMY_SPEED_FACTOR = 0.7  # Reducido de 0.8 para dar ventaja al jugador
+    ENEMY_SPEED_FACTOR = 0.2  # Configurado para que los enemigos se muevan 1 paso por cada 5 del avatar
     
     # El factor de agresividad determina qué tan probable es que el enemigo
     # intente bloquear el camino hacia la casa en lugar de perseguir al jugador
     # Rango 0.0 (sólo persigue al jugador) a 1.0 (sólo bloquea camino a la casa)
-    ENEMY_AGGRESSION_FACTOR = 0.4  # Reducido para hacer el juego más equilibrado
+    ENEMY_AGGRESSION_FACTOR = 0.1  # Reducido para hacer el juego extremadamente fácil
     
     # Distancia mínima entre enemigos durante el posicionamiento inicial
     # Ayuda a evitar la agrupación de enemigos al inicio del juego

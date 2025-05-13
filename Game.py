@@ -55,6 +55,7 @@ class Game:
         self.game_over = False
         self.environment_analyzed = False  # Indicador de si el entorno ha sido analizado
         self.enemy_objects = []  # Lista para almacenar objetos enemigos inteligentes
+        self.enemies_initialized = False  # Flag para controlar si los enemigos han sido inicializados
 
         # Inicializar estado del juego
         self.game_state = GameState(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
@@ -86,8 +87,8 @@ class Game:
         # Realizar entrenamiento del avatar antes de crear enemigos
         self._train_avatar()
         
-        # Inicializar enemigos inteligentes
-        self._initialize_intelligent_enemies()
+        # Los enemigos serán inicializados cuando el avatar comience a moverse
+        # en lugar de inicializarse aquí
 
         # Inicializar matriz de movimiento
         self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
@@ -123,12 +124,15 @@ class Game:
             
         # Actualizar movimiento de enemigos basado en la diferencia de tiempo
         # Esta función se ejecuta independientemente de si seguimos una ruta o no
-        self._update_enemies(current_time)
+        if self.enemies_initialized and self.step_counter > 0:  # Solo actualizar si el jugador ya se ha movido
+            # Actualizar a los enemigos en cada ciclo del juego, 
+            # el método _update_enemies se encargará de respetar el timing
+            self._update_enemies(current_time)
         
         # Detectar colisiones entre jugador y enemigos
         if self._check_player_enemy_collision():
             # Si el jugador fue atrapado, no continuar con la actualización
-            # El método _check_player_enemy_collision ya reinicia la posición del jugador
+            # El método _check_player_enemy_collision ya reinicia
             return
 
         # En modo headless, usar la ruta óptima
@@ -136,63 +140,64 @@ class Game:
             if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
                 print(f"Paso {self.path_index + 1}/{len(self.best_path)}")
                 
-                # Permitir que los enemigos se muevan antes de decidir el próximo movimiento del jugador
-                self._update_enemies(current_time)
-                
-                # Verificar colisiones después del movimiento de enemigos
-                if self._check_player_enemy_collision():
-                    # Si el jugador fue atrapado, reiniciar posición y recalcular ruta
-                    print("Jugador atrapado durante ejecución rápida. Recalculando ruta...")
-                    self.path_index = 0
-                    self._recalculate_path_for_headless()
-                    self.move_timer = current_time
-                    return
-                
-                if self.path_index < len(self.best_path):
-                    # Mover al siguiente punto en la ruta
-                    next_pos = self.best_path[self.path_index]
-                    
-                    # Verificar que no haya un enemigo en la posición a movernos
-                    if next_pos not in self.game_state.enemy_positions:
-                        self.game_state.player_pos = next_pos
-                        self.movement_matrix[next_pos[1]][next_pos[0]] += 1
-
-                        # Verificar si llegamos a la meta
-                        if next_pos == self.game_state.house_pos:
-                            print("¡Llegamos a la meta!")
-                            self.game_state.victory = True
-                            self.is_running = False
-                            GameConfig.HEADLESS_MODE = False
-                            
-                            # Visualizar análisis final si está disponible
-                            if hasattr(self.agent, 'plot_comprehensive_analysis'):
-                                self.agent.plot_comprehensive_analysis(
-                                    self.game_state.initial_player_pos,
-                                    self.game_state.house_pos,
-                                    self.game_state.obstacles,
-                                    save_path="analisis_final.png",
-                                    show=True
-                                )
-                        else:
-                            self.path_index += 1
-                    else:
-                        # Hay un enemigo en la posición, buscar una ruta alternativa
-                        print("Enemigo en el camino durante ejecución rápida. Recalculando ruta...")
-                        self._recalculate_path_for_headless()
-                        self.path_index = 0
-                        
-                    self.move_timer = current_time
-                else:
-                    print("Ejecución rápida completada")
-                    self.is_running = False
-                    GameConfig.HEADLESS_MODE = False
-                    
-                return  # Salir después de procesar la ejecución rápida
-                
-            # Modo normal con movimientos aleatorios (esta parte no debería ejecutarse en headless)
-            if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
-                self._make_random_move()
+                # Actualizar enemigos si están inicializados
+                if self.enemies_initialized:
+                    self._update_enemies(current_time)
+            
+            # Verificar colisiones después del movimiento de enemigos
+            if self._check_player_enemy_collision():
+                # Si el jugador fue atrapado, reiniciar posición y recalcular ruta
+                print("Jugador atrapado durante ejecución rápida. Recalculando ruta...")
+                self.path_index = 0
+                self._recalculate_path_for_headless()
                 self.move_timer = current_time
+                return
+            
+            if self.path_index < len(self.best_path):
+                # Mover al siguiente punto en la ruta
+                next_pos = self.best_path[self.path_index]
+                
+                # Verificar que no haya un enemigo en la posición a movernos
+                if next_pos not in self.game_state.enemy_positions:
+                    self.game_state.player_pos = next_pos
+                    self.movement_matrix[next_pos[1]][next_pos[0]] += 1
+
+                    # Verificar si llegamos a la meta
+                    if next_pos == self.game_state.house_pos:
+                        print("¡Llegamos a la meta!")
+                        self.game_state.victory = True
+                        self.is_running = False
+                        GameConfig.HEADLESS_MODE = False
+                        
+                        # Visualizar análisis final si está disponible
+                        if hasattr(self.agent, 'plot_comprehensive_analysis'):
+                            self.agent.plot_comprehensive_analysis(
+                                self.game_state.initial_player_pos,
+                                self.game_state.house_pos,
+                                self.game_state.obstacles,
+                                save_path="analisis_final.png",
+                                show=True
+                            )
+                    else:
+                        self.path_index += 1
+                else:
+                    # Hay un enemigo en la posición, buscar una ruta alternativa
+                    print("Enemigo en el camino durante ejecución rápida. Recalculando ruta...")
+                    self._recalculate_path_for_headless()
+                    self.path_index = 0
+                    
+                self.move_timer = current_time
+            else:
+                print("Ejecución rápida completada")
+                self.is_running = False
+                GameConfig.HEADLESS_MODE = False
+                
+            return  # Salir después de procesar la ejecución rápida
+            
+        # Modo normal con movimientos aleatorios (esta parte no debería ejecutarse en headless)
+        if current_time - self.move_timer >= GameConfig.MOVE_DELAY:
+            self._make_random_move()
+            self.move_timer = current_time
 
         if self.game_state.victory:
             # Calcular la ruta óptima cuando llegamos a la meta
@@ -229,7 +234,7 @@ class Game:
         Determina y ejecuta el siguiente movimiento del jugador.
         
         Este método privado:
-        - Verifica si el jugador ha llegado a la meta
+        - Verifica si el jugador ha llegada a la meta
         - Determina el siguiente movimiento basado en el tiempo transcurrido
         - Sigue un camino predefinido si existe
         - Utiliza árboles de decisión o movimientos aleatorios para generar nuevos movimientos
@@ -239,6 +244,20 @@ class Game:
         Returns:
             tuple o None: Las nuevas coordenadas de posición (x, y) o None si no se realizó movimiento
         """
+        # Inicializar enemigos en el primer movimiento del avatar
+        if not self.enemies_initialized:
+            self._initialize_intelligent_enemies()
+            self.enemies_initialized = True
+            
+            # Inicializar contador en 0 - incrementará con el primer movimiento
+            self.step_counter = 0
+            
+            print(f"\n=== CONFIGURACIÓN DE ENEMIGOS ===")
+            print(f"- ENEMY_SPEED_FACTOR: {GameConfig.ENEMY_SPEED_FACTOR}")
+            print(f"- Enemigos se moverán cada {int(1/GameConfig.ENEMY_SPEED_FACTOR)} pasos del avatar")
+            print("Los enemigos comenzarán a moverse cuando el avatar se mueva")
+            print(f"- Paso actual del avatar: {self.step_counter}")
+            
         # Verificar si llegamos a la meta
         if self.game_state.player_pos == self.game_state.house_pos:
             self.game_state.victory = True
@@ -252,8 +271,13 @@ class Game:
         # Actualizar movimiento basado en el tiempo
         current_time = pygame.time.get_ticks()
         if current_time - self.move_timer > GameConfig.MOVE_DELAY:
-            # Permitir que los enemigos se muevan antes de decidir el próximo movimiento del jugador
-            self._update_enemies()
+            # Incrementar contador de pasos
+            self.step_counter += 1
+            
+            # Forzar actualización de enemigos si están inicializados
+            if self.enemies_initialized:
+                print(f"[DEBUG] _get_next_move: Incrementando step_counter a {self.step_counter}")
+                self._update_enemies(current_time)
             
             # Verificar colisiones después del movimiento de enemigos
             if self.game_state.player_caught:
@@ -351,7 +375,7 @@ class Game:
         elif GameConfig.MOVE_LEFT_RANGE[0] <= move_value <= GameConfig.MOVE_LEFT_RANGE[1]:
             next_pos = (current_pos[0] - 1, current_pos[1])
 
-            # Verificar si el movimiento es válido
+        # Verificar si el movimiento es válido
         if (next_pos and
                 0 <= next_pos[0] < GameConfig.GRID_WIDTH and
                 0 <= next_pos[1] < GameConfig.GRID_HEIGHT and
@@ -361,7 +385,8 @@ class Game:
             self.game_state.player_pos = next_pos
             self.movement_matrix[next_pos[1]][next_pos[0]] += 1
             
-            # Incrementar contador de pasos del avatar para control del ratio 2:1
+            # Incrementar contador de pasos del avatar
+            # Este contador es crucial para el inicio del movimiento de los enemigos
             self.step_counter += 1
             
             if not self.current_path:
@@ -1302,68 +1327,66 @@ class Game:
         Actualiza el estado y posición de los enemigos.
         
         Este método maneja:
-        - El movimiento de los enemigos según el tiempo transcurrido
+        - El movimiento de los enemigos cada 5 pasos del avatar (ENEMY_SPEED_FACTOR = 0.2)
         - La detección del jugador por parte de los enemigos
         - La planificación de rutas para perseguir al jugador o interceptarlo
         - El comportamiento específico según el tipo de enemigo
-        - Control del ratio de movimiento (1 paso de enemigo por cada 2 del jugador)
         
         Args:
-            current_time (int, opcional): Tiempo actual en milisegundos para sincronizar el movimiento.
-                Si no se proporciona, se obtiene el tiempo actual.
+            current_time (int, opcional): Tiempo actual en milisegundos (ya no utilizado).
         """
         # No actualizar si el juego no está en ejecución o ya se alcanzó la victoria
         if not self.is_running or self.game_state.victory or self.game_over:
+            print("[DEBUG] _update_enemies: No actualizando - juego no en ejecución, victoria o game over")
             return
-            
-        # Control del ratio de movimiento 2:1 (jugador:enemigo)
-        # Los enemigos se mueven solo cuando el contador de pasos del jugador es par
-        if self.step_counter % 2 != 0:
+        
+        # Si los enemigos no están inicializados o el avatar no se ha movido, no actualizar
+        if not self.enemies_initialized or self.step_counter == 0:
+            print(f"[DEBUG] _update_enemies: No actualizando - enemigos no inicializados o avatar no se ha movido: step_counter={self.step_counter}")
             return
-            
-        # Si no se proporciona el tiempo actual, obtenerlo
-        if current_time is None:
-            current_time = pygame.time.get_ticks()
-            
-        # Actualizar cada enemigo usando A* para encontrar el camino hacia el jugador
+        
+        # Mover enemigos cada 5 pasos del avatar (ENEMY_SPEED_FACTOR = 0.2)
+        if self.step_counter % 5 != 0:
+            print(f"[DEBUG] _update_enemies: No es momento de mover enemigos: step_counter={self.step_counter} % 5 = {self.step_counter % 5}")
+            return
+        
+        print(f"\n[DEBUG] _update_enemies: MOVIENDO ENEMIGOS en paso {self.step_counter}")
+        print(f"- Cantidad de enemigos: {len(self.game_state.enemies)}")
+        
+        # Mover cada enemigo
         for enemy_id, enemy_data in list(self.game_state.enemies.items()):
             current_pos = enemy_data['position']
+            next_pos = None
             
-            # Determinar objetivo según tipo de enemigo
+            # Determinar movimiento según tipo de enemigo
             if enemy_data['type'] == 'perseguidor':
-                target_pos = self.game_state.player_pos
+                next_pos = self._calculate_enemy_move(enemy_id, current_pos, self.game_state.player_pos)
             elif enemy_data['type'] == 'bloqueador':
                 target_pos = self._calculate_intercept_position(current_pos)
+                next_pos = self._calculate_enemy_move(enemy_id, current_pos, target_pos)
             elif enemy_data['type'] == 'patrulla':
-                # Usar lógica de patrulla existente
                 next_pos = self._move_patrol_enemy(enemy_id, current_pos)
-                continue
-            else:  # aleatorio u otro tipo
+            elif enemy_data['type'] == 'aleatorio':
                 next_pos = self._random_enemy_move(enemy_id, current_pos)
-                continue
             
-            # Calcular siguiente movimiento usando A*
-            path = self._find_path_for_enemy(current_pos, target_pos)
-            
-            if path and len(path) > 1:
-                next_pos = path[1]  # El siguiente punto en el camino
-                
-                if self._is_valid_enemy_move(next_pos):
-                    # Actualizar posición del enemigo
+            # Si se encontró una nueva posición válida, actualizar
+            if next_pos and next_pos != current_pos:
+                print(f"- Enemigo {enemy_id} ({enemy_data['type']}) intenta moverse de {current_pos} a {next_pos}")
+                if self._is_valid_enemy_move(next_pos, current_pos):
+                    # Actualizar posición
                     self.game_state.enemy_positions.remove(current_pos)
                     self.game_state.enemies[enemy_id]['position'] = next_pos
                     self.game_state.enemy_positions.add(next_pos)
                     
-                    # Actualizar dirección del enemigo para visualización
+                    # Actualizar dirección para animación
                     dx = next_pos[0] - current_pos[0]
                     dy = next_pos[1] - current_pos[1]
                     self.game_state.enemies[enemy_id]['direction'] = (dx, dy)
-                    
-                    # Verificar colisión con el jugador
-                    if next_pos == self.game_state.player_pos:
-                        self.game_over = True
-                        print("¡Game Over! El enemigo ha atrapado al jugador")
-                        return
+                    print(f"✓ Enemigo {enemy_id} movido exitosamente a {next_pos}")
+                else:
+                    print(f"✗ Movimiento inválido para enemigo {enemy_id} a {next_pos}")
+            else:
+                print(f"- Enemigo {enemy_id} ({enemy_data['type']}) no cambió de posición")
         
     def _follow_path(self, current_time=None):
         """
@@ -1387,7 +1410,8 @@ class Game:
             return
             
         # Actualizar enemigos antes de moverse
-        self._update_enemies(current_time)
+        if self.enemies_initialized:
+            self._update_enemies(current_time)
         
         # Verificar colisiones después del movimiento de enemigos
         if self._check_player_enemy_collision():
@@ -1418,7 +1442,7 @@ class Game:
             # Actualizar matriz de movimiento
             self.movement_matrix[next_pos[1]][next_pos[0]] += 1
             
-            # Incrementar contador de pasos del avatar para el ratio 2:1 de movimiento
+            # Incrementar contador de pasos del avatar
             self.step_counter += 1
             
             # Verificar victoria
@@ -1434,76 +1458,36 @@ class Game:
             if not self.game_state.victory:
                 print("Fin del camino sin llegar a la meta. Recalculando...")
                 self._recalculate_path()
-        
-        # Calcular el tiempo transcurrido desde la última actualización
-        elapsed_time = self.clock.get_time() if hasattr(self.clock, 'get_time') else 16  # 16ms aproximadamente 60fps por defecto
-        
-        # Actualizar el temporizador de enemigos en el estado del juego
-        self.game_state.enemy_move_timer += elapsed_time
-        
-        # Verificar si es momento de mover a los enemigos
-        if self.game_state.enemy_move_timer >= GameConfig.ENEMY_MOVE_DELAY:
-            # Reiniciar el temporizador
-            self.game_state.enemy_move_timer = 0
-            
-            # Primero, actualizar todas las posiciones de enemigos
-            updated_enemy_positions = set()
-            
-            # Lista de movimientos a realizar (para evitar colisiones entre enemigos)
-            enemy_moves = []
-            
-            # Para cada enemigo, calcular su movimiento
-            for enemy_id, enemy_data in list(self.game_state.enemies.items()):
-                # Obtener posición actual del enemigo
-                current_pos = enemy_data['position']
-                enemy_type = enemy_data['type']
-                
-                # Determinar el objetivo del enemigo según su tipo
-                if enemy_type == "perseguidor":
-                    # Persigue directamente al jugador
-                    target_pos = self.game_state.player_pos
-                    next_pos = self._calculate_enemy_move(enemy_id, current_pos, target_pos)
-                elif enemy_type == "bloqueador":
-                    # Intenta interceptar el camino del jugador a la casa
-                    intercept_pos = self._calculate_intercept_position(current_pos)
-                    next_pos = self._calculate_enemy_move(enemy_id, current_pos, intercept_pos)
-                elif enemy_type == "patrulla":
-                    # Sigue una ruta de patrulla
-                    next_pos = self._move_patrol_enemy(enemy_id, current_pos)
-                elif enemy_type == "aleatorio":
-                    # Movimiento aleatorio
-                    next_pos = self._random_enemy_move(enemy_id, current_pos)
-                else:
-                    # Por defecto, usar comportamiento de perseguidor
-                    target_pos = self.game_state.player_pos
-                    next_pos = self._calculate_enemy_move(enemy_id, current_pos, target_pos)
-                
-                # Si se encontró una posición válida, agregarla a la lista de movimientos
-                if next_pos and next_pos != current_pos:
-                    enemy_moves.append((enemy_id, next_pos))
-            
-            # Realizar los movimientos evitando colisiones
-            for enemy_id, next_pos in enemy_moves:
-                # Verificar que la posición no esté ocupada por otro enemigo
-                if next_pos not in updated_enemy_positions:
-                    # Actualizar posición del enemigo
-                    old_pos = self.game_state.enemies[enemy_id]['position']
-                    
-                    # Eliminar la posición anterior del conjunto de posiciones
-                    self.game_state.enemy_positions.remove(old_pos)
-                    
-                    # Actualizar a la nueva posición
-                    self.game_state.enemies[enemy_id]['position'] = next_pos
-                    self.game_state.enemy_positions.add(next_pos)
-                    
-                    # Añadir a posiciones actualizadas
-                    updated_enemy_positions.add(next_pos)
-                    
-                    # Actualizar dirección
-                    dx = next_pos[0] - old_pos[0]
-                    dy = next_pos[1] - old_pos[1]
-                    self.game_state.enemies[enemy_id]['direction'] = (dx, dy)
 
+    def _update_enemy_position(self, enemy_id, current_pos, next_pos):
+        """
+        Actualiza la posición de un enemigo y verifica colisiones con el jugador.
+        
+        Args:
+            enemy_id: ID único del enemigo
+            current_pos: Posición actual del enemigo (x, y)
+            next_pos: Nueva posición del enemigo (x, y)
+        """
+        # Verificar que la nueva posición no esté ocupada por otro enemigo
+        if next_pos not in self.game_state.enemy_positions or next_pos == current_pos:
+            # Eliminar la posición anterior
+            self.game_state.enemy_positions.remove(current_pos)
+            
+            # Actualizar a la nueva posición
+            self.game_state.enemies[enemy_id]['position'] = next_pos
+            self.game_state.enemy_positions.add(next_pos)
+            
+            # Actualizar dirección del enemigo para visualización
+            dx = next_pos[0] - current_pos[0]
+            dy = next_pos[1] - current_pos[1]
+            self.game_state.enemies[enemy_id]['direction'] = (dx, dy)
+            
+            # Verificar colisión con el jugador
+            if next_pos == self.game_state.player_pos:
+                self.game_state.player_caught = True
+                self.game_over = True  # Marcamos game_over para que _check_player_enemy_collision lo maneje
+                print("¡Game Over! El enemigo ha atrapado al jugador")
+    
     def _calculate_enemy_move(self, enemy_id, current_pos, target_pos):
         """
         Calcula el siguiente movimiento para un enemigo hacia un objetivo.
@@ -1516,8 +1500,8 @@ class Game:
         Returns:
             tuple: Nueva posición (x, y) o None si no hay movimiento válido
         """
-        # Si el juego está en estado game_over, no mover
-        if self.game_over:
+        # Si el juego está en estado game_over o el jugador ha sido atrapado, no mover
+        if self.game_over or self.game_state.player_caught:
             return current_pos
 
         # Verificar si el objetivo está dentro del rango de detección
@@ -1527,38 +1511,29 @@ class Game:
         if manhattan_distance > GameConfig.ENEMY_DETECTION_RANGE:
             return self._random_enemy_move(enemy_id, current_pos)
         
-        # Intentar usar pathfinding A* para encontrar ruta
-        path = self._find_path_for_enemy(current_pos, target_pos)
+        # Calcular dirección hacia el objetivo
+        dx = 0 if current_pos[0] == target_pos[0] else (1 if target_pos[0] > current_pos[0] else -1)
+        dy = 0 if current_pos[1] == target_pos[1] else (1 if target_pos[1] > current_pos[1] else -1)
         
-        # Si se encontró una ruta con más de un punto, tomar el siguiente paso
-        if path and len(path) > 1:
-            next_pos = path[1]  # El primer punto es la posición actual
-            
-            # Verificar si el siguiente movimiento colisiona con el jugador
-            if next_pos == self.game_state.player_pos:
-                self.game_over = True
-                print("¡Game Over! El enemigo ha atrapado al jugador")
-            
-            return next_pos
-        
-        # Si no se pudo encontrar una ruta, intentar movimiento aleatorio
-        return self._random_enemy_move(enemy_id, current_pos)
+        # Intentar movimiento en x o y (alternar prioridad)
+        if random.choice([True, False]) and dx != 0:
+            next_pos = (current_pos[0] + dx, current_pos[1])
+            if self._is_valid_enemy_move(next_pos, current_pos):
+                return next_pos
                 
-        # Si no se encontró ningún movimiento válido, quedarse en la posición actual
-        return current_pos
+        if dy != 0:
+            next_pos = (current_pos[0], current_pos[1] + dy)
+            if self._is_valid_enemy_move(next_pos, current_pos):
+                return next_pos
+                
+        if dx != 0:
+            next_pos = (current_pos[0] + dx, current_pos[1])
+            if self._is_valid_enemy_move(next_pos, current_pos):
+                return next_pos
         
-    def _random_enemy_move(self, enemy_id, current_pos):
-        """
-        Genera un movimiento aleatorio para un enemigo.
+        # Si no se puede mover en la dirección deseada, intentar movimiento aleatorio
+        return self._random_enemy_move(enemy_id, current_pos)
         
-        Args:
-            enemy_id: ID único del enemigo
-            current_pos: Posición actual del enemigo
-            
-        Returns:
-            tuple: Nueva posición (x, y) o la misma posición si no se puede mover
-        """
-        # Direcciones posibles (arriba, derecha, abajo, izquierda)
         directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
         
         # Mezclar direcciones para aleatorizar
@@ -1763,22 +1738,6 @@ class Game:
             
         return projected_pos
 
-    def _is_valid_enemy_move(self, pos, current_pos=None):
-        """
-        Verifica si una posición es válida para que un enemigo se mueva a ella.
-        
-        Args:
-            pos: Posición a verificar (x, y)
-            current_pos: Posición actual del enemigo, opcional
-            
-        Returns:
-            bool: True si es válida, False en caso contrario
-        """
-        # Verificar límites del grid
-        if not (0 <= pos[0] < GameConfig.GRID_WIDTH and 0 <= pos[1] < GameConfig.GRID_HEIGHT):
-            return False
-            
-        # Verificar que no sea la posición de otro enemigo
         # Si es la posición actual del enemigo que se está moviendo, permitirlo
         if pos in self.game_state.enemy_positions and pos != current_pos:
             return False
@@ -1880,11 +1839,14 @@ class Game:
         importadas directamente, en lugar de usar strings. Cada tipo de enemigo se define
         como un diccionario con las claves 'type' y 'class' para evitar el error con __name__.
         """
-        print("\nInicializando enemigos inteligentes...")
+        print("\n=== INICIALIZANDO ENEMIGOS INTELIGENTES ===")
         print("Estado actual del juego:")
         print(f"- Jugador en: {self.game_state.player_pos}")
         print(f"- Casa en: {self.game_state.house_pos}")
         print(f"- Número de obstáculos: {len(self.game_state.obstacles)}")
+        print(f"- ENEMY_MOVE_DELAY: {GameConfig.ENEMY_MOVE_DELAY}ms")
+        print(f"- ENEMY_SPEED_FACTOR: {GameConfig.ENEMY_SPEED_FACTOR}")
+        print(f"- MOVE_DELAY (avatar): {GameConfig.MOVE_DELAY}ms")
         
         # Limpiar enemigos existentes
         self.game_state.enemies.clear()
@@ -2288,7 +2250,7 @@ class Game:
         if self.game_state.player_pos in self.game_state.enemy_positions:
             # Jugador atrapado por un enemigo
             self.game_state.player_caught = True
-            self.game_over = True  # Activar game over
+            self.game_over = True  # Activar temporalmente game over
             print("¡Game Over! El jugador ha sido atrapado por un enemigo!")
             
             # Esperar un momento antes de reiniciar
@@ -2297,6 +2259,8 @@ class Game:
             # Reiniciar posición del jugador pero mantener obstáculos y enemigos
             self.game_state.player_pos = self.game_state.initial_player_pos
             self.game_state.player_caught = False
+            self.game_over = False  # Desactivar game over para permitir continuar
+            self.game_state.victory = False  # Asegurar que no se active victoria por error
             
             # Si estamos en modo de camino predefinido, reiniciar índice
             if self.current_path:
@@ -2307,6 +2271,9 @@ class Game:
                 
             # Actualizar el temporizador de movimiento
             self.move_timer = pygame.time.get_ticks()
+            
+            # Mantener el juego en ejecución
+            self.is_running = True
             
             return True  # Hubo colisión
             

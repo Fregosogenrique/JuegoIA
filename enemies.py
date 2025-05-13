@@ -11,7 +11,7 @@ class BaseEnemy:
         self.obstacles = set()
         self.enemies = set()
         self.house_position = None
-        # Para mantener el ratio de movimiento 2:1
+        # Para mantener el ratio de movimiento 1:8 (1 movimiento de enemigo por cada 8 del jugador)
         self.move_counter = 0
 
     def update_environment(self, obstacles, enemies, house_position):
@@ -20,11 +20,11 @@ class BaseEnemy:
         self.house_position = house_position
 
     def can_move(self):
-        """Controla el ratio de movimiento 2:1"""
+        """Controla el ratio de movimiento 1:10 (1 movimiento de enemigo por cada 10 del jugador)"""
         self.move_counter += 1
-        if self.move_counter >= 2:
+        if self.move_counter >= 10:  # Aumentar a 10 para hacer el ratio aún más favorable al jugador
             self.move_counter = 0
-            return True
+            return random.random() > 0.8  # 80% de probabilidad de NO moverse
         return False
 
     def is_valid_position(self, pos):
@@ -48,7 +48,7 @@ class Perseguidor(BaseEnemy):
             return self.position
 
         # Implementar una distancia mínima para evitar bloqueos constantes
-        min_distance = 3
+        min_distance = 10  # Aumentado para mantener aún más distancia del jugador
         current_distance = abs(self.position[0] - player_pos[0]) + abs(self.position[1] - player_pos[1])
         
         # Si estamos muy cerca, mantener distancia
@@ -166,7 +166,7 @@ class Patrulla(BaseEnemy):
         self.surface.fill((128, 0, 128))  # Morado
         self.patrol_path = []
         self.patrol_index = 0
-        self.patrol_radius = 3
+        self.patrol_radius = 1  # Reducido para limitar aún más el área de patrulla
 
     def get_next_move(self, player_pos):
         if not self.can_move():
@@ -238,7 +238,11 @@ class Aleatorio(BaseEnemy):
     def get_next_move(self, player_pos):
         if not self.can_move():
             return self.position
-
+        
+        # Reducir aún más la probabilidad de movimiento (75% de las veces no se moverá)
+        if random.random() < 0.9:  # 90% de probabilidad de no moverse (era 75%)
+            return self.position
+            
         # Lista de posibles movimientos
         possible_moves = []
         x, y = self.position

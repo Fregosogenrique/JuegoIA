@@ -93,7 +93,7 @@ class GameRenderer:
         5. Dibujado de enemigos
         6. Visualización de rutas (cuando hay victoria)
         7. Dibujado del jugador y la casa (meta)
-        8. Mensajes de victoria o estado de entrenamiento
+        8. Mensajes de victoria, game over o estado de entrenamiento
         9. Dibujado de la barra lateral con controles y estadísticas
         
         Este orden específico garantiza que los elementos se superpongan correctamente,
@@ -127,6 +127,9 @@ class GameRenderer:
         # Dibujar mensaje de victoria al final
         if self.game.game_state.victory:
             self._draw_victory_message()
+        # Dibujar mensaje de game over si aplica
+        elif hasattr(self.game, 'game_over') and self.game.game_over:
+            self._draw_game_over_message()
 
         # Dibujar estado de entrenamiento
         self._draw_training_status()
@@ -567,6 +570,51 @@ class GameRenderer:
         # Dibujar el fondo y el texto
         self.screen.blit(background, background_rect)
         self.screen.blit(text, text_rect)
+
+    def _draw_game_over_message(self):
+        """
+        Dibuja el mensaje de Game Over cuando el jugador colisiona con un enemigo.
+        
+        Muestra un mensaje de game over mediante:
+        - Un texto grande y destacado en color rojo ("¡Game Over!")
+        - Un fondo semitransparente para realzar el mensaje
+        
+        El mensaje se coloca en el centro de la pantalla para maximizar
+        su visibilidad e indicar claramente al jugador que el juego ha terminado.
+        
+        Este método solo se activa cuando el jugador ha colisionado con un enemigo
+        (game.game_over es True).
+        """
+        font = pygame.font.SysFont(None, 72)  # Fuente más grande para destacar
+        text = font.render("¡GAME OVER!", True, GameConfig.RED)
+
+        # Calcular posición para el mensaje (en el centro de la pantalla)
+        text_rect = text.get_rect(
+            center=(
+                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
+                GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE // 2
+            )
+        )
+
+        # Crear un fondo semi-transparente para el texto
+        background = pygame.Surface((text_rect.width + 40, text_rect.height + 20))
+        background.fill(GameConfig.BLACK)
+        background.set_alpha(180)  # Semi-transparente
+
+        background_rect = background.get_rect(center=text_rect.center)
+
+        # Dibujar el fondo y el texto
+        self.screen.blit(background, background_rect)
+        self.screen.blit(text, text_rect)
+
+        # Añadir un mensaje adicional con instrucciones
+        font_small = pygame.font.SysFont(None, 24)
+        instructions = font_small.render("Presiona ESPACIO para continuar", True, GameConfig.WHITE)
+        instructions_rect = instructions.get_rect(
+            centerx=text_rect.centerx,
+            top=text_rect.bottom + 10
+        )
+        self.screen.blit(instructions, instructions_rect)
 
     def _draw_progress_bar(self, x, y, width, height, progress, bg_color, fg_color, border_color):
         """
