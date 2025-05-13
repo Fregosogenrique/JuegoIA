@@ -120,16 +120,24 @@ class GameConfig:
     # Distancia máxima a la que un enemigo puede detectar al jugador
     # Esta es la distancia en celdas (Manhattan) dentro de la cual el enemigo
     # intentará perseguir al jugador usando pathfinding
-    ENEMY_DETECTION_RANGE = 8
+    ENEMY_DETECTION_RANGE = 6  # Reducido de 8 para dar más espacio al jugador
     
     # Velocidad de movimiento de los enemigos relativa al jugador (1.0 = misma velocidad)
     # Valores mayores a 1.0 hacen que los enemigos sean más rápidos que el jugador
-    ENEMY_SPEED_FACTOR = 0.8
+    ENEMY_SPEED_FACTOR = 0.7  # Reducido de 0.8 para dar ventaja al jugador
     
     # El factor de agresividad determina qué tan probable es que el enemigo
     # intente bloquear el camino hacia la casa en lugar de perseguir al jugador
     # Rango 0.0 (sólo persigue al jugador) a 1.0 (sólo bloquea camino a la casa)
-    ENEMY_AGGRESSION_FACTOR = 0.5
+    ENEMY_AGGRESSION_FACTOR = 0.4  # Reducido para hacer el juego más equilibrado
+    
+    # Distancia mínima entre enemigos durante el posicionamiento inicial
+    # Ayuda a evitar la agrupación de enemigos al inicio del juego
+    ENEMY_MIN_SEPARATION = 5
+    
+    # Radio de exploración para el enemigo tipo 'patrulla'
+    # Define qué tan lejos de su posición inicial patrullará
+    PATROL_RADIUS = 5  # Aumentado para más recorrido
     
     # Tipos de enemigos disponibles y su comportamiento:
     # - "perseguidor": persigue directamente al jugador

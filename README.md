@@ -1,16 +1,16 @@
-# JuegoIA - Proyecto Acumulativo IA 25A CUValles
+# JuegoIA - Juego de Navegación Inteligente
 
 ![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)
-![Pygame Version](https://img.shields.io/badge/pygame-2.5.0+-blue.svg)
+![Pygame Version](https://img.shields.io/badge/pygame-2.6.1-blue.svg)
 ![License](https://img.shields.io/badge/license-Educational-green.svg)
-![Version](https://img.shields.io/badge/version-1.5-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.5.1-brightgreen.svg)
 ![CUValles](https://img.shields.io/badge/CUValles-IA%2025A-orange.svg)
 
 ## Resumen Ejecutivo
 Este proyecto implementa un juego de navegación con diferentes tipos de enemigos controlados por IA. Destacan:
-- Implementación de A* pathfinding con ratio 2:1
-- Cuatro tipos de enemigos con comportamientos únicos
-- Sistema de mapas de calor para análisis
+- Implementación de A* pathfinding con ratio de movimiento 2:1 (el avatar se mueve dos veces por cada movimiento de enemigo)
+- Cuatro tipos de enemigos con comportamientos únicos y sincronizados
+- Sistema de mapas de calor para análisis de movimientos
 - Interfaz gráfica intuitiva con múltiples modos
 
 ## Descripción
@@ -105,11 +105,35 @@ Este juego de navegación, implementado en Python con Pygame, presenta un desaf�
 ## Mecánicas de Juego
 
 ### Sistema de Enemigos
-- Cada enemigo tiene su propio comportamiento basado en IA
-- Los enemigos perseguidores utilizan A* para encontrar la ruta más corta
-- Los bloqueadores predicen y anticipan el movimiento del jugador
-- Las patrullas mantienen áreas específicas bajo vigilancia
-- Los enemigos aleatorios añaden un elemento de imprevisibilidad
+- Inteligencia artificial adaptativa para cada tipo de enemigo
+- Sistema de pathfinding con A* para navegación inteligente
+- Detección y evitación de obstáculos
+- Comportamientos únicos para cada tipo de enemigo
+
+#### Tipos de Enemigos:
+- **Perseguidor**:
+  * Sigue directamente al jugador
+  * Mantiene distancia mínima de 3 unidades
+  * Color: Rojo
+  * Implementa pathfinding inteligente hacia el jugador
+  
+- **Bloqueador**:
+  * Anticipa movimientos del jugador
+  * Calcula puntos de intercepción entre jugador y meta
+  * Color: Naranja
+  * Prioriza posiciones entre jugador y meta
+  
+- **Patrulla**:
+  * Sigue rutas predefinidas
+  * Radio de patrulla configurable
+  * Color: Morado
+  * Genera rutas de patrulla dinámicas adaptadas a obstáculos
+  
+- **Aleatorio**:
+  * Movimientos impredecibles
+  * Evita obstáculos y colisiones
+  * Color: Azul
+  * Selecciona movimientos aleatorios pero válidos
 
 Ejemplos de comportamiento:
 - Perseguidores: Calculan y actualizan rutas constantemente hacia el jugador
@@ -117,12 +141,43 @@ Ejemplos de comportamiento:
 - Patrullas: Mantienen rutas predefinidas y reaccionan al jugador en su rango
 - Aleatorios: Movimiento impredecible que añade variedad al juego
 
-### Ratio de Movimiento 2:1
+### Implementación del Ratio de Movimiento 2:1
+
+Este juego implementa un sistema de movimiento donde **por cada dos movimientos del avatar, los enemigos se mueven una vez**. Esta mecánica está implementada de la siguiente manera:
+
+1. En la clase `BaseEnemy`:
+   - Método `can_move()` que controla el ratio de movimiento
+   - `move_counter` que se incrementa con cada intento de movimiento
+   - Movimiento permitido solo cuando `move_counter >= 2`
+
+2. Comportamientos específicos de enemigos:
+   - **Perseguidor**: Sigue al jugador manteniendo una distancia mínima
+   - **Bloqueador**: Intenta interceptar al jugador calculando puntos de intersección
+   - **Patrulla**: Sigue una ruta predefinida con el ratio 2:1
+   - **Aleatorio**: Movimientos aleatorios respetando el ratio
+
+#### Sistema de Movimiento
+```python
+def can_move(self):
+    """Controla el ratio de movimiento 2:1"""
+    self.move_counter += 1
+    if self.move_counter >= 2:
+        self.move_counter = 0
+        return True
+    return False
+```
+
+### Visualización del Ratio 2:1
+```
+Avatar: 🟦 → 🟦 → (2 movimientos)
+Enemigo: 🟥 → (1 movimiento)
+```
+Este sistema asegura que:
 - El jugador tiene ventaja estratégica con dos movimientos por cada uno del enemigo
-- Sistema implementado mediante contador de pasos (step_counter)
+- Sistema implementado mediante contador en BaseEnemy
 - Balance entre desafío y jugabilidad
 - Implementación específica:
-  * Contador en Game.py para sincronización
+  * Método can_move() para sincronización
   * Validación en _update_enemies para movimiento de enemigos
   * Control preciso de la ventaja del jugador
 
@@ -224,7 +279,7 @@ Los archivos del proyecto están completamente documentados con docstrings y com
 
 ```
 JuegoIA/
-├── main.py                 # Punto de entrada principal
+├── main.py                # Punto de entrada principal
 ├── Game.py                # Lógica principal del juego y IA
 ├── GameState.py           # Gestión del estado del juego
 ├── render.py              # Sistema de renderizado y UI
@@ -232,8 +287,27 @@ JuegoIA/
 ├── DecisionTree.py        # Algoritmo de árboles de decisión
 ├── HeatMapPathfinding.py  # Sistema de mapas de calor
 ├── ADB.py                 # Algoritmos de aprendizaje
-└── README.md             # Documentación del proyecto
+├── enemies.py             # Implementación de tipos de enemigos
+└── README.md              # Documentación del proyecto
 ```
+
+### Implementación Técnica del Ratio 2:1 en BaseEnemy
+En el archivo `enemies.py`, cada tipo de enemigo hereda de la clase `BaseEnemy`, que implementa el sistema de ratio 2:1 a través del método `can_move()`:
+
+```python
+def can_move(self):
+    """Controla el ratio de movimiento 2:1"""
+    self.move_counter += 1
+    if self.move_counter >= 2:
+        self.move_counter = 0
+        return True
+    return False
+```
+
+Cada enemigo invoca este método antes de realizar cualquier movimiento, asegurando:
+1. Consistencia en el ratio 2:1
+2. Sincronización entre todos los tipos de enemigos
+3. Ventaja estratégica para el jugador
 
 ---
 
@@ -253,8 +327,102 @@ JuegoIA/
 
 ### Sistema de Enemigos
 - Gestión de estados independiente para cada tipo de enemigo
-- Sincronización de movimientos mediante step_counter
+- Sincronización de movimientos mediante BaseEnemy.can_move()
 - Sistema de predicción para enemigos bloqueadores
+
+### Comportamientos de Enemigos
+1. **Perseguidor**:
+   - Pathfinding inteligente hacia el jugador
+   - Mantiene distancia mínima de 3 unidades
+   - Implementación de movimiento diagonal cuando es posible
+
+2. **Bloqueador**:
+   - Calcula puntos de intercepción
+   - Prioriza posiciones entre jugador y meta
+   - Predice movimiento futuro del jugador
+
+3. **Patrulla**:
+   - Genera rutas de patrulla dinámicas
+   - Se adapta a obstáculos cercanos
+   - Mantiene patrullaje en área definida
+
+4. **Aleatorio**:
+   - Movimientos aleatorios válidos
+   - Evita colisiones y obstáculos
+   - Mantiene coherencia en movimiento
+
+### Comportamientos Específicos de Enemigos con Ratio 2:1
+
+Cada enemigo implementa el sistema de movimiento 2:1 a través de la clase BaseEnemy, pero lo utiliza de manera única:
+
+1. **Perseguidor (Rojo)**
+   - Espera dos movimientos del avatar antes de actualizar su posición
+   - Mantiene distancia mínima de 3 unidades para evitar persecución agresiva
+   - Utiliza A* pathfinding con predicción de movimiento
+   ```python
+   def get_next_move(self, player_pos):
+       if not self.can_move():  # Control de ratio 2:1
+           return self.position
+       # ... lógica de persecución
+   ```
+
+2. **Bloqueador (Naranja)**
+   - Calcula puntos de intercepción considerando el ratio 2:1
+   - Predice la posición futura del jugador basado en su velocidad doble
+   - Prioriza posiciones estratégicas entre jugador y meta
+   ```python
+   def get_next_move(self, player_pos):
+       if not self.can_move():  # Control de ratio 2:1
+           return self.position
+       # ... lógica de bloqueo
+   ```
+
+3. **Patrulla (Morado)**
+   - Sigue su ruta de patrulla respetando el ratio 2:1
+   - Mantiene sincronización con otros enemigos
+   - Radio de patrulla adaptable a obstáculos
+   ```python
+   def get_next_move(self, player_pos):
+       if not self.can_move():  # Control de ratio 2:1
+           return self.position
+       # ... lógica de patrulla
+   ```
+
+4. **Aleatorio (Azul)**
+   - Movimientos aleatorios cada dos pasos del jugador
+   - Evita colisiones y mantiene coherencia de movimiento
+   - Incluye validación de movimientos
+   ```python
+   def get_next_move(self, player_pos):
+       if not self.can_move():  # Control de ratio 2:1
+           return self.position
+       # ... lógica de movimiento aleatorio
+   ```
+
+### Implementación del Ratio en BaseEnemy
+
+El sistema 2:1 está centralizado en la clase base para garantizar consistencia:
+
+```python
+class BaseEnemy:
+    def __init__(self, position, grid_width, grid_height):
+        # ... otras inicializaciones
+        self.move_counter = 0  # Contador para ratio 2:1
+
+    def can_move(self):
+        """Controla el ratio de movimiento 2:1"""
+        self.move_counter += 1
+        if self.move_counter >= 2:
+            self.move_counter = 0
+            return True
+        return False
+```
+
+Esta implementación asegura que:
+- Todos los enemigos mantienen el mismo ratio de movimiento
+- La sincronización es consistente en todo el juego
+- El jugador mantiene ventaja estratégica de dos movimientos
+- El sistema es fácilmente ajustable para balanceo del juego
 
 ### Arquitectura del Juego
 - Diseño modular para fácil extensibilidad
@@ -297,11 +465,20 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 25A en CUValles:
 
 ## [Registro de Versiones](#registro-de-versiones)
 - v1.0 (Febrero 2024): Implementación inicial del juego con movimiento básico
-- v1.1 (Marzo 2024): Sistema A* para navegación inteligente de enemigos y ratio 2:1
+- v1.1 (Marzo 2024): Sistema A* para navegación inteligente de enemigos
 - v1.2 (Marzo 2024): Implementación de diferentes tipos de enemigos y sus comportamientos
 - v1.3 (Abril 2024): Sistema de UI mejorado y reposicionamiento del avatar
 - v1.4 (Mayo 2024): Implementación de mapas de calor y análisis de movimiento
-- v1.5 (Mayo 2024): Optimizaciones finales y documentación completa
+- v1.5 (Mayo 2024): 
+  * Optimizaciones finales y documentación completa
+  * Mejora del sistema de movimiento con ratio 2:1
+  * Refinamiento de comportamientos de enemigos
+  * Implementación de BaseEnemy con control centralizado de movimiento
+- v1.5.1 (Mayo 2024):
+  * Optimización del ratio de movimiento 2:1
+  * Mejora en la sincronización de enemigos
+  * Documentación actualizada con ejemplos visuales
+  * Correcciones de errores menores
 
 ---
 
@@ -328,6 +505,22 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 25A en CUValles:
    - Verificar resolución mínima: 1024x768
    - Actualizar drivers de video
    - Probar en modo ventana
+
+4. **Problemas con el Ratio de Movimiento 2:1**
+   - **Síntoma**: Los enemigos se mueven demasiado rápido o lento
+     * Verificar que `move_counter` se reinicia correctamente
+     * Comprobar que todos los enemigos heredan de BaseEnemy
+     * Asegurar que `can_move()` se llama antes de cada movimiento
+
+   - **Síntoma**: Desincronización de enemigos
+     * Revisar que todos los enemigos usan el mismo contador
+     * Verificar que no hay movimientos fuera del control del ratio
+     * Comprobar la inicialización correcta de BaseEnemy
+
+   - **Síntoma**: El avatar no tiene ventaja de movimiento
+     * Asegurar que el control de movimiento del avatar está correcto
+     * Verificar la implementación de `_update_enemies`
+     * Comprobar la lógica de detección de colisiones
 
 ---
 

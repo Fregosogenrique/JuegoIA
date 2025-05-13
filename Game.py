@@ -8,6 +8,7 @@ from config import GameConfig
 from render import GameRenderer
 from ADB import RandomRoute
 from HeatMapPathfinding import HeatMapPathfinding
+from enemies import Perseguidor, Bloqueador, Patrulla, Aleatorio
 
 class Game:
     """
@@ -52,33 +53,18 @@ class Game:
         # Variables para control de ratio de movimiento y game over
         self.step_counter = 0
         self.game_over = False
+        self.environment_analyzed = False  # Indicador de si el entorno ha sido analizado
+        self.enemy_objects = []  # Lista para almacenar objetos enemigos inteligentes
 
         # Inicializar estado del juego
         self.game_state = GameState(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.game_state.initialize_game()
         
-        # Inicializar enemigos con comportamiento dinámico si hay soporte para ello
-        if hasattr(self, '_initialize_enemies'):
-            self._initialize_enemies(3)  # Crear 3 enemigos por defecto
-
-        # Contador de pasos del avatar para controlar el movimiento de enemigos (2:1)
-        self.step_counter = 0
-        self.game_over = False
-
-        # Inicializar matriz de movimiento
-        self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
-
-        # Variables de control del juego
-        self.is_running = False
-        self.move_timer = pygame.time.get_ticks()
-        self.edit_mode = None
-        self.clock = pygame.time.Clock()  # Inicializar el reloj para controlar FPS y timing
-
         # Variables de ruta y camino
         self.current_path = []
         self.path_index = 0
         self.best_path = None
-
+        
         # Variables de entrenamiento y aprendizaje
         self.agent = RandomRoute(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.is_training = False
@@ -90,12 +76,27 @@ class Game:
         self.total_executions = 0
         self.visible_executions = 0
         self.invisible_executions = 0
-
-        # Inicializar pathfinding con mapa de calor
+        
+        # Inicializar pathfinding con mapa de calor - DEBE estar antes del entrenamiento
         self.heat_map_pathfinder = HeatMapPathfinding(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.use_heat_map = False  # Indica si se debe usar el mapa de calor para pathfinding
         self.heat_map_trained = False  # Indica si el mapa de calor ha sido entrenado
         self.heat_map_training_iterations = 500  # Número de iteraciones para entrenamiento
+        
+        # Realizar entrenamiento del avatar antes de crear enemigos
+        self._train_avatar()
+        
+        # Inicializar enemigos inteligentes
+        self._initialize_intelligent_enemies()
+
+        # Inicializar matriz de movimiento
+        self.movement_matrix = np.zeros((GameConfig.GRID_HEIGHT, GameConfig.GRID_WIDTH))
+
+        # Variables de control del juego
+        self.is_running = False
+        self.move_timer = pygame.time.get_ticks()
+        self.edit_mode = None
+        self.clock = pygame.time.Clock()  # Inicializar el reloj para controlar FPS y timing
 
         # Inicializar renderizador
         self.renderer = GameRenderer(self.screen, self)
@@ -1793,86 +1794,481 @@ class Game:
             
         return True
 
-    def _initialize_enemies(self, count=None):
+    def _train_avatar(self):
         """
-        Inicializa un número determinado de enemigos en posiciones aleatorias.
+        Entrena al avatar para comprender completamente su entorno antes de la colocación de enemigos.
         
-        Args:
-            count: Número de enemigos a crear. Si es None, usa un valor aleatorio basado en el tamaño del grid.
+        Este método realiza dos pasos clave:
+        1. Entrenamiento intensivo del mapa de calor para encontrar rutas óptimas
+        2. Análisis completo del entorno para identificar zonas estratégicas
+        
+        El avatar adquiere conocimiento total del mapa antes de que aparezcan los enemigos,
+        lo que le permite navegar de forma inteligente y anticipar movimientos de los enemigos.
         """
+        print("\n=== INICIANDO ENTRENAMIENTO DEL AVATAR ===")
+        
+        # PASO 1: Entrenar intensivamente el mapa de calor
+        print("Entrenando sistema de navegación del avatar...")
+        
+        # Aumentar el número de iteraciones para un entrenamiento más robusto
+        training_iterations = 1000
+        
+        # Entrenar el sistema de pathfinding primero para que tenga datos 
+        # válidos antes del análisis del entorno
+        best_path = self.heat_map_pathfinder.train(
+            start_pos=self.game_state.player_pos, 
+            goal_pos=self.game_state.house_pos,
+            obstacles=self.game_state.obstacles,
+            enemies=set(),  # Entrenamos sin enemigos, ya que aún no están en el tablero
+            num_iterations=training_iterations
+        )
+        
+        # Validar el entrenamiento
+        if best_path:
+            print(f"Entrenamiento exitoso: Ruta óptima de {len(best_path)} pasos encontrada")
+            self.best_path = best_path
+            self.heat_map_trained = True
+        else:
+            print("Advertencia: No se pudo encontrar una ruta óptima durante el entrenamiento")
+            print("Realizando entrenamiento adicional...")
+            
+            # Intentar con más iteraciones si el entrenamiento falló
+            best_path = self.heat_map_pathfinder.train(
+                start_pos=self.game_state.player_pos, 
+                goal_pos=self.game_state.house_pos,
+                obstacles=self.game_state.obstacles,
+                enemies=set(),
+                num_iterations=training_iterations * 2  # Duplicar iteraciones para segundo intento
+            )
+            
+            if best_path:
+                print(f"Entrenamiento exitoso en segundo intento: Ruta de {len(best_path)} pasos")
+                self.best_path = best_path
+                self.heat_map_trained = True
+            else:
+                print("Error: No se pudo encontrar una ruta. El mapa puede ser innavegable.")
+        
+        # PASO 2: Realizar un análisis completo del entorno
+        print("\nAnalizando el entorno y características estratégicas...")
+        
+        # Ahora que el mapa de calor está entrenado, realizar análisis del entorno
+        self.environment_analyzed = self.heat_map_pathfinder.analyze_environment(
+            start_pos=self.game_state.player_pos,
+            goal_pos=self.game_state.house_pos,
+            obstacles=self.game_state.obstacles,
+            potential_enemy_count=4  # Indicamos que habrá 4 enemigos específicos
+        )
+        
+        # Validación final
+        if not self.environment_analyzed:
+            print("Advertencia: El análisis del entorno no se completó correctamente")
+            print("Algunos enemigos podrían tener comportamientos subóptimos")
+        
+        print("=== AVATAR ENTRENADO EXITOSAMENTE ===\n")
+        
+    def _initialize_intelligent_enemies(self):
+        """
+        Inicializa exactamente cuatro enemigos con inteligencia avanzada:
+        - Perseguidor: Sigue activamente al avatar usando pathfinding
+        - Bloqueador: Intercepta el camino previsto del avatar
+        - Patrulla: Sigue rutas predefinidas en áreas estratégicas
+        - Aleatorio: Se mueve de forma aleatoria pero inteligente
+        
+        Cada enemigo tiene capacidad de detectar y evitar obstáculos.
+        
+        Nota: Esta función utiliza clases de enemigos (Perseguidor, Bloqueador, etc.)
+        importadas directamente, en lugar de usar strings. Cada tipo de enemigo se define
+        como un diccionario con las claves 'type' y 'class' para evitar el error con __name__.
+        """
+        print("\nInicializando enemigos inteligentes...")
+        print("Estado actual del juego:")
+        print(f"- Jugador en: {self.game_state.player_pos}")
+        print(f"- Casa en: {self.game_state.house_pos}")
+        print(f"- Número de obstáculos: {len(self.game_state.obstacles)}")
+        
         # Limpiar enemigos existentes
         self.game_state.enemies.clear()
         self.game_state.enemy_positions.clear()
+        self.enemy_objects.clear()
+
+        # Crear un enemigo de cada tipo
+        enemy_types = [
+            {"type": "perseguidor", "class": Perseguidor},
+            {"type": "bloqueador", "class": Bloqueador},
+            {"type": "patrulla", "class": Patrulla},
+            {"type": "aleatorio", "class": Aleatorio}
+        ]
         
-        # Determinar número de enemigos
-        if count is None:
-            # Aproximación simple basada en el tamaño del grid
-            grid_area = GameConfig.GRID_WIDTH * GameConfig.GRID_HEIGHT
-            obstacle_count = len(self.game_state.obstacles)
-            
-            # Calcular espacio libre disponible (al menos 20 celdas)
-            free_space = max(20, grid_area - obstacle_count - 2)  # Restar jugador y casa
-            
-            # Usar valores fijos como base para diferentes tamaños de grid
-            # Grids pequeños (< 400 celdas): 2-4 enemigos
-            # Grids medianos (400-800 celdas): 3-5 enemigos
-            # Grids grandes (> 800 celdas): 4-8 enemigos
-            
-            if grid_area < 400:
-                min_enemies = 2
-                max_enemies = 4
-            elif grid_area < 800:
-                min_enemies = 3
-                max_enemies = 5
-            else:
-                min_enemies = 4
-                max_enemies = 8
-                
-            # Limitar por espacio disponible (máximo 5% del espacio libre)
-            max_by_space = max(3, int(free_space * 0.05))
-            max_enemies = min(max_enemies, max_by_space)
-            
-            # Asegurar que min_enemies nunca sea mayor que max_enemies
-            min_enemies = min(min_enemies, max_enemies)
-            
-            # Asegurar que siempre hay al menos 1 enemigo y como máximo 8
-            min_enemies = max(1, min(8, min_enemies))
-            max_enemies = max(min_enemies, min(8, max_enemies))
-            
+        print("\nCreando enemigos:")
+        # Lista para almacenar posiciones ya utilizadas
+        used_positions = []
+        
+        for enemy_data in enemy_types:
             try:
-                # Generar número aleatorio entre min y max (inclusivo)
-                count = random.randint(min_enemies, max_enemies)
-            except ValueError:
-                # En caso de error, usar el valor mínimo
-                count = min_enemies
+                print(f"\nIntentando crear enemigo tipo {enemy_data['type']}...")
                 
-            print(f"Generando {count} enemigos (rango {min_enemies}-{max_enemies}) en un grid de {grid_area} celdas con {free_space} espacios libres.")
+                # Obtener posición estratégica para el enemigo
+                pos = self._get_strategic_position_for_enemy(enemy_data["type"], used_positions)
+                print(f"- Posición estratégica encontrada: {pos}")
+                
+                if pos:
+                    try:
+                        # Crear objeto enemigo usando la clase proporcionada
+                        print(f"- Creando objeto enemigo en {pos}")
+                        enemy = enemy_data["class"](
+                            position=pos,
+                            grid_width=GameConfig.GRID_WIDTH,
+                            grid_height=GameConfig.GRID_HEIGHT
+                        )
+                        
+                        # Actualizar conocimiento del entorno
+                        print("- Actualizando conocimiento del entorno")
+                        enemy.update_environment(
+                            obstacles=self.game_state.obstacles,
+                            enemies=set(used_positions),
+                            house_position=self.game_state.house_pos
+                        )
+                        
+                        # Agregar a la lista de objetos enemigos
+                        self.enemy_objects.append(enemy)
+                        
+                        # Registrar en el estado del juego
+                        print("- Registrando enemigo en el estado del juego")
+                        enemy_id = self.game_state.add_enemy(pos, enemy_data["type"])
+                        if enemy_id is not None:
+                            self.game_state.enemy_positions.add(pos)
+                            used_positions.append(pos)
+                            print(f"✓ Enemigo tipo {enemy_data['type']} creado exitosamente en {pos}")
+                        else:
+                            print(f"✗ Error: No se pudo registrar enemigo {enemy_data['type']} en el estado del juego")
+                            
+                    except Exception as e:
+                        print(f"✗ Error al crear enemigo {enemy_data['type']}: {str(e)}")
+                        print("- Intentando posición alternativa...")
+                        fallback_pos = self._get_fallback_enemy_position(
+                            enemy_data["type"], used_positions)
+                        if fallback_pos:
+                            print(f"- Reintentando con posición alternativa {fallback_pos}")
+                            self._retry_enemy_creation(
+                                enemy_data["class"], enemy_data["type"], fallback_pos, used_positions)
+                else:
+                    print(f"✗ No se pudo encontrar posición estratégica para {enemy_data['type']}")
+                            
+            except Exception as e:
+                print(f"✗ Error al procesar tipo de enemigo {enemy_data['type']}: {str(e)}")
+                continue
         
-        # Crear enemigos
-        enemy_types = ["perseguidor", "bloqueador", "patrulla", "aleatorio"]
-        for _ in range(count):
-            # Intentar hasta 10 veces encontrar una posición válida
-            for attempt in range(10):
-                x = random.randint(0, GameConfig.GRID_WIDTH - 1)
-                y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
-                pos = (x, y)
-                
-                # Verificar que la posición sea válida y no esté demasiado cerca del jugador
-                player_distance = self._manhattan_distance(pos, self.game_state.player_pos)
-                
-                # No colocar enemigos demasiado cerca del jugador inicial
-                min_distance = 4  # Distancia mínima para dar al jugador espacio inicial
-                
-                if player_distance >= min_distance and self._is_valid_enemy_move(pos):
-                    # Escoger un tipo aleatorio de enemigo
-                    enemy_type = random.choice(enemy_types)
+        print(f"\nCreación de enemigos completada: {len(self.enemy_objects)} enemigos generados")
+        
+    def _retry_enemy_creation(self, enemy_class, enemy_name, position, used_positions):
+        """
+        Reintenta la creación de un enemigo con una posición alternativa.
+        
+        Args:
+            enemy_class: Clase del enemigo a crear
+            enemy_name: Nombre del tipo de enemigo
+            position: Posición alternativa para el enemigo
+            used_positions: Lista de posiciones ya utilizadas
+        """
+        try:
+            # Crear enemigo con posición de respaldo
+            enemy = enemy_class(
+                position=position,
+                grid_width=GameConfig.GRID_WIDTH,
+                grid_height=GameConfig.GRID_HEIGHT
+            )
+            
+            # Actualizar ambiente
+            enemy.update_environment(
+                obstacles=self.game_state.obstacles,
+                enemies=set(used_positions),
+                house_position=self.game_state.house_pos
+            )
+            
+            # Agregar a las listas correspondientes
+            self.enemy_objects.append(enemy)
+            enemy_id = self.game_state.add_enemy(position, enemy_name)
+            if enemy_id is not None:
+                self.game_state.enemy_positions.add(position)
+                used_positions.append(position)
+                print(f"Enemigo tipo {enemy_name} ubicado en posición alternativa {position}")
+            else:
+                print(f"Error: No se pudo agregar enemigo {enemy_name} en posición alternativa")
+        except Exception as e:
+            print(f"Error al crear enemigo {enemy_name} en posición alternativa: {e}")
+    
+    def _get_strategic_position_for_enemy(self, enemy_type, used_positions):
+        """
+        Determina una posición estratégica para un enemigo según su tipo.
+        
+        Args:
+            enemy_type (str): Tipo de enemigo ('perseguidor', 'bloqueador', 'patrulla', 'aleatorio')
+            used_positions (list): Lista de posiciones ya ocupadas por otros enemigos
+            
+        Returns:
+            tuple: Posición (x,y) estratégica o None si no se encuentra
+        """
+        # Utilizar los resultados del análisis de entorno si está disponible
+        if self.environment_analyzed and hasattr(self.heat_map_pathfinder, 'potential_enemy_positions'):
+            # Filtrar posiciones potenciales según el tipo de enemigo
+            if enemy_type == 'perseguidor':
+                # Perseguidor: colocar en posiciones alejadas del avatar pero con buen acceso
+                potential_positions = [pos for pos in self.heat_map_pathfinder.potential_enemy_positions
+                                    if self._manhattan_distance(pos, self.game_state.player_pos) >= 6]
+            elif enemy_type == 'bloqueador':
+                # Bloqueador: colocar cerca de puntos de estrangulamiento
+                potential_positions = self.heat_map_pathfinder.choke_points if hasattr(self.heat_map_pathfinder, 'choke_points') else []
+            elif enemy_type == 'patrulla':
+                # Patrulla: colocar en espacios abiertos
+                potential_positions = self.heat_map_pathfinder.safe_zones if hasattr(self.heat_map_pathfinder, 'safe_zones') else []
+            else:  # aleatorio
+                # Aleatorio: cualquier posición válida
+                potential_positions = list(self.heat_map_pathfinder.potential_enemy_positions)
+            
+            # Filtrar posiciones ya utilizadas y no válidas
+            potential_positions = [pos for pos in potential_positions 
+                                 if pos not in used_positions
+                                 and pos != self.game_state.player_pos
+                                 and pos != self.game_state.house_pos
+                                 and pos not in self.game_state.obstacles]
+            
+            # Si hay posiciones estratégicas disponibles, seleccionar la mejor
+            if potential_positions:
+                # Para cada tipo de enemigo, aplicar criterio adicional de selección
+                if enemy_type == 'perseguidor':
+                    # Seleccionar la posición que permita una mejor persecución
+                    return min(potential_positions, 
+                              key=lambda pos: self._manhattan_distance(pos, self.game_state.player_pos))
+                elif enemy_type == 'bloqueador':
+                    # Seleccionar la posición más cercana a la línea entre jugador y casa
+                    player_pos = self.game_state.player_pos
+                    house_pos = self.game_state.house_pos
                     
-                    # Crear el enemigo
-                    enemy_id = self.game_state.add_enemy(pos, enemy_type)
-                    if enemy_id:
-                        break  # Enemigo creado exitosamente
+                    # Función para calcular distancia de un punto a la línea jugador-casa
+                    def distance_to_line(pos):
+                        # Si jugador y casa están en la misma posición, usar distancia directa
+                        if player_pos == house_pos:
+                            return self._manhattan_distance(pos, player_pos)
+                            
+                        # Calcular vector de la línea
+                        line_x = house_pos[0] - player_pos[0]
+                        line_y = house_pos[1] - player_pos[1]
+                        line_length = abs(line_x) + abs(line_y)
+                        
+                        # Proyección del punto a la línea
+                        t = max(0, min(1, ((pos[0] - player_pos[0]) * line_x + 
+                                         (pos[1] - player_pos[1]) * line_y) / 
+                                        (line_length * line_length)))
+                        
+                        # Punto de proyección
+                        proj_x = player_pos[0] + t * line_x
+                        proj_y = player_pos[1] + t * line_y
+                        
+                        # Distancia al punto de proyección
+                        return abs(pos[0] - proj_x) + abs(pos[1] - proj_y)
+                    
+                    # Seleccionar el punto más cercano a la línea
+                    return min(potential_positions, key=distance_to_line)
+                elif enemy_type == 'patrulla':
+                    # Seleccionar una posición con buen espacio para patrullar
+                    def open_space_score(pos):
+                        score = 0
+                        # Contar casillas libres en un radio de 3
+                        for dx in range(-3, 4):
+                            for dy in range(-3, 4):
+                                check_pos = (pos[0] + dx, pos[1] + dy)
+                                if (0 <= check_pos[0] < GameConfig.GRID_WIDTH and
+                                    0 <= check_pos[1] < GameConfig.GRID_HEIGHT and
+                                    check_pos not in self.game_state.obstacles and
+                                    check_pos != self.game_state.house_pos):
+                                    score += 1
+                        return score
+                    
+                    # Seleccionar la posición con más espacio abierto
+                    return max(potential_positions, key=open_space_score)
+                else:  # aleatorio
+                    # Seleccionar una posición aleatoria
+                    return random.choice(potential_positions)
         
-        print(f"Se han generado {len(self.game_state.enemies)} enemigos")
+        # Si no hay análisis de entorno o no se encontraron posiciones adecuadas, usar enfoque genérico
+        # Intentar hasta 20 veces encontrar una posición válida
+        for attempt in range(20):
+            # Generar posición aleatoria
+            x = random.randint(0, GameConfig.GRID_WIDTH - 1)
+            y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
+            pos = (x, y)
+            
+            # Verificar que la posición sea válida
+            if (pos not in used_positions and
+                pos != self.game_state.player_pos and
+                pos != self.game_state.house_pos and
+                pos not in self.game_state.obstacles):
+                
+                # Para el perseguidor, evitar posiciones demasiado cercanas al jugador
+                if enemy_type == 'perseguidor' and self._manhattan_distance(pos, self.game_state.player_pos) < 5:
+                    continue
+                    
+                # Para el bloqueador, preferir posiciones entre el jugador y la casa
+                if enemy_type == 'bloqueador':
+                    player_pos = self.game_state.player_pos
+                    house_pos = self.game_state.house_pos
+                    player_to_house = self._manhattan_distance(player_pos, house_pos)
+                    pos_to_player = self._manhattan_distance(pos, player_pos)
+                    pos_to_house = self._manhattan_distance(pos, house_pos)
+                    
+                    # Si la posición está mucho más lejos que la distancia directa, rechazarla
+                    if pos_to_player + pos_to_house > player_to_house * 1.5:
+                        continue
+                
+                return pos
+                
+        # Si no se encontró posición en los intentos, usar posición aleatoria como último recurso
+        while True:
+            x = random.randint(0, GameConfig.GRID_WIDTH - 1)
+            y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
+            pos = (x, y)
+            
+            # Solo verificar las restricciones mínimas
+            if (pos not in used_positions and
+                pos != self.game_state.player_pos and
+                pos != self.game_state.house_pos and
+                pos not in self.game_state.obstacles):
+                return pos
+    
+    def _get_fallback_enemy_position(self, enemy_type, used_positions):
+        """
+        Obtiene una posición alternativa para un enemigo cuando el método principal falla.
+        
+        Esta función utiliza estrategias más simples y directas para encontrar una
+        posición válida para un enemigo, centrándose en posiciones aleatorias pero 
+        con ciertas restricciones según el tipo de enemigo.
+        
+        Args:
+            enemy_type (str): Tipo de enemigo ('perseguidor', 'bloqueador', 'patrulla', 'aleatorio')
+            used_positions (list): Lista de posiciones ya ocupadas por otros enemigos
+            
+        Returns:
+            tuple: Posición (x,y) o None si no se encuentra ninguna posición válida
+        """
+        # Número máximo de intentos
+        max_attempts = 50
+        
+        # Parámetros adaptados según tipo de enemigo
+        if enemy_type == 'perseguidor':
+            # Para perseguidor: posición alejada del jugador pero con acceso a rutas principales
+            min_distance_to_player = 7  # Más lejos para dar tiempo al jugador
+            max_distance_to_player = 15
+        elif enemy_type == 'bloqueador':
+            # Para bloqueador: posición entre jugador y casa
+            min_distance_to_player = 3
+            max_distance_to_player = 8
+        elif enemy_type == 'patrulla':
+            # Para patrulla: posición con buen espacio alrededor
+            min_distance_to_player = 5
+            max_distance_to_player = 15
+        else:  # aleatorio
+            # Para aleatorio: cualquier posición válida
+            min_distance_to_player = 3
+            max_distance_to_player = 20
+        
+        # Intentar encontrar posición que cumpla con los requisitos
+        for attempt in range(max_attempts):
+            # Generar posición aleatoria
+            x = random.randint(0, GameConfig.GRID_WIDTH - 1)
+            y = random.randint(0, GameConfig.GRID_HEIGHT - 1)
+            pos = (x, y)
+            
+            # Verificar validez básica
+            if (pos not in used_positions and
+                pos != self.game_state.player_pos and
+                pos != self.game_state.house_pos and
+                pos not in self.game_state.obstacles):
+                
+                # Verificar distancia al jugador
+                dist_to_player = self._manhattan_distance(pos, self.game_state.player_pos)
+                
+                # Verificar si cumple con el criterio de distancia para el tipo de enemigo
+                if min_distance_to_player <= dist_to_player <= max_distance_to_player:
+                    # Verificaciones específicas por tipo de enemigo
+                    if enemy_type == 'bloqueador':
+                        # Para bloqueadores, verificar que esté cerca de la ruta principal
+                        player_pos = self.game_state.player_pos
+                        house_pos = self.game_state.house_pos
+                        
+                        # Calcular vector desde jugador a casa
+                        player_to_house_x = house_pos[0] - player_pos[0]
+                        player_to_house_y = house_pos[1] - player_pos[1]
+                        
+                        # Normalizar dirección
+                        magnitude = max(1, abs(player_to_house_x) + abs(player_to_house_y))
+                        direction_x = player_to_house_x / magnitude
+                        direction_y = player_to_house_y / magnitude
+                        
+                        # Verificar que el punto esté cerca de la línea entre jugador y casa
+                        # Proyectar el punto a la línea
+                        t = max(0, min(1, ((pos[0] - player_pos[0]) * direction_x + 
+                                     (pos[1] - player_pos[1]) * direction_y)))
+                        
+                        proj_x = player_pos[0] + t * direction_x * magnitude
+                        proj_y = player_pos[1] + t * direction_y * magnitude
+                        
+                        # Calcular distancia del punto a la proyección
+                        dist_to_line = abs(pos[0] - proj_x) + abs(pos[1] - proj_y)
+                        
+                        # Aceptar si está relativamente cerca de la línea
+                        if dist_to_line <= 5:  # Umbral de distancia a la línea
+                            return pos
+                    elif enemy_type == 'patrulla':
+                        # Para patrullas, verificar que haya suficiente espacio abierto
+                        open_space_count = 0
+                        for dx in range(-2, 3):
+                            for dy in range(-2, 3):
+                                check_pos = (pos[0] + dx, pos[1] + dy)
+                                if (0 <= check_pos[0] < GameConfig.GRID_WIDTH and
+                                    0 <= check_pos[1] < GameConfig.GRID_HEIGHT and
+                                    check_pos not in self.game_state.obstacles and
+                                    check_pos not in used_positions and
+                                    check_pos != self.game_state.house_pos):
+                                    open_space_count += 1
+                        
+                        # Aceptar si hay suficiente espacio abierto
+                        if open_space_count >= 10:  # Al menos 10 celdas libres en un radio de 2
+                            return pos
+                    elif enemy_type == 'perseguidor':
+                        # Para perseguidores, verificar que haya un camino hacia el jugador
+                        if self.heat_map_trained:
+                            path = self.heat_map_pathfinder.find_path_with_heat_map(pos, self.game_state.player_pos)
+                            if path and len(path) > 1:
+                                return pos
+                        else:
+                            # Sin mapa de calor, aceptar posición si está a distancia adecuada
+                            return pos
+                    else:  # aleatorio
+                        # Para aleatorio, aceptar cualquier posición válida a la distancia adecuada
+                        return pos
+        
+        # Si no se encontró ninguna posición adecuada después de los intentos,
+        # usar un enfoque más simple y directo
+        print(f"No se pudo encontrar posición adecuada para {enemy_type}. Usando enfoque de último recurso.")
+        
+        # Último recurso: Simplemente buscar cualquier posición válida sin restricciones adicionales
+        valid_positions = []
+        for y in range(GameConfig.GRID_HEIGHT):
+            for x in range(GameConfig.GRID_WIDTH):
+                pos = (x, y)
+                if (pos not in used_positions and
+                    pos != self.game_state.player_pos and
+                    pos != self.game_state.house_pos and
+                    pos not in self.game_state.obstacles):
+                    valid_positions.append(pos)
+        
+        if valid_positions:
+            # Seleccionar una posición aleatoria entre las válidas
+            return random.choice(valid_positions)
+        
+        # Si no queda absolutamente ninguna posición válida, devolver None
+        print(f"Error crítico: No se pudo encontrar ninguna posición válida para {enemy_type}")
+        return None
         
     def _check_player_enemy_collision(self):
         """

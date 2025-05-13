@@ -525,3 +525,11 @@ class GameState:
             self.player_caught = True
             return True
         return False
+        
+    def update_enemy_positions(self):
+        """
+        Actualiza las posiciones de los enemigos.
+        
+        Este método debe implementarse en las clases derivadas.
+        """
+        pass
