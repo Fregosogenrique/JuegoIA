@@ -1,859 +1,345 @@
+
 import pygame
-import os
+import os  # Necesario para construir rutas de archivo si las imágenes están en subcarpetas
 from config import GameConfig
 import numpy as np
 
 
 class GameRenderer:
     """
-    Clase responsable de toda la visualización gráfica del juego.
-    
-    Esta clase encapsula toda la lógica de renderizado del juego, incluyendo:
-    - Dibujo del grid (cuadrícula) y elementos del juego
-    - Visualización del jugador, casa (meta), obstáculos y enemigos
-    - Representación visual de rutas y caminos calculados por algoritmos de IA
-    - Visualización de la matriz de movimiento como mapa de calor
-    - Interfaz de usuario con barra lateral, botones y estadísticas
-    - Mensajes de estado como victoria y progreso de entrenamiento
-    
-    El renderizador implementa un sistema de fallback para imágenes,
-    permitiendo usar representaciones alternativas cuando las imágenes
-    no están disponibles.
-    
-    La clase mantiene un registro de los elementos UI como botones para
-    permitir la detección de interacciones del usuario.
-    
-    Atributos:
-        screen: Superficie de pygame donde se renderiza el juego.
-        game: Referencia a la instancia principal del juego.
-        button_rects: Diccionario que mapea IDs de botones a sus rectángulos.
-        player_img: Imagen cargada para el jugador (o superficie fallback).
-        house_img: Imagen cargada para la casa (o superficie fallback).
-        enemy_img: Imagen cargada para los enemigos (o superficie fallback).
+    Yo me encargo de dibujar todo lo que se ve en el juego.
     """
 
-    def __init__(self, screen, game):
-        """
-        Inicializa una nueva instancia del renderizador del juego.
-        
-        Configura la superficie de renderizado, establece la referencia al
-        controlador del juego, e intenta cargar las imágenes necesarias para
-        la visualización. Si las imágenes no pueden cargarse, se crean
-        superficies de fallback coloreadas.
-        
-        Args:
-            screen (pygame.Surface): Superficie principal de renderizado.
-            game (Game): Instancia del controlador principal del juego.
-        """
+    def __init__(self, screen, game_instance):
         self.screen = screen
-        self.game = game
+        self.game = game_instance
         self.button_rects = {}
 
-        # Cargar imágenes
         self.player_img = self._load_image(GameConfig.PLAYER_IMAGE)
         self.house_img = self._load_image(GameConfig.HOUSE_IMAGE)
         self.enemy_img = self._load_image(GameConfig.ENEMY_IMAGE)
 
-    def _load_image(self, filename):
-        """
-        Carga una imagen desde un archivo y la escala al tamaño de una celda.
-        
-        Intenta cargar la imagen especificada y redimensionarla para que coincida
-        con el tamaño de una celda del grid. Si ocurre algún error durante la carga
-        (archivo no encontrado, formato no válido, etc.), crea una superficie
-        de color blanco como alternativa.
-        
-        Args:
-            filename (str): Ruta relativa al archivo de imagen a cargar.
-            
-        Returns:
-            pygame.Surface: Imagen cargada y escalada, o una superficie de fallback
-            si la carga falla.
-        """
+    def _load_image(self, filename_str):
         try:
-            img = pygame.image.load(filename)
-            return pygame.transform.scale(img, (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
-        except (pygame.error, FileNotFoundError):
-            # Si hay error al cargar la imagen, usar un rectángulo de color como fallback
-            fallback = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
-            fallback.fill(GameConfig.WHITE)
-            return fallback
+            # Asumimos que las imágenes están en la misma carpeta que los scripts
+            # o que filename_str ya incluye la ruta relativa (e.g., "assets/player.png")
+            filepath = filename_str
+            if not os.path.exists(
+                    filepath) and "assets" not in filename_str:  # Intenta buscar en "assets" si no se encuentra
+                filepath_assets = os.path.join("assets", filename_str)
+                if os.path.exists(filepath_assets):
+                    filepath = filepath_assets
+
+            img_loaded = pygame.image.load(filepath)
+            return pygame.transform.scale(img_loaded, (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
+        except (pygame.error, FileNotFoundError) as e:
+            print(
+                f"ADVERTENCIA: No se pudo cargar la imagen '{filename_str}' (buscada en '{filepath}', Error: {e}). Usando color de fallback.")
+            fallback_surf = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
+            if "player" in filename_str.lower():
+                fallback_surf.fill(GameConfig.PLAYER_COLOR)
+            elif "house" in filename_str.lower():
+                fallback_surf.fill(GameConfig.HOUSE_COLOR)
+            elif "enemy" in filename_str.lower():
+                fallback_surf.fill(GameConfig.ENEMY_COLOR)
+            else:
+                fallback_surf.fill(GameConfig.WHITE)
+            return fallback_surf
 
     def render(self):
-        """
-        Renderiza el juego completo en la pantalla.
-        
-        Este método principal de renderizado coordina todo el proceso de visualización
-        en el siguiente orden:
-        
-        1. Limpieza de la pantalla
-        2. Dibujado del grid base
-        3. Visualización de la matriz de movimiento (mapa de calor) si está activa
-        4. Dibujado de obstáculos
-        5. Dibujado de enemigos
-        6. Visualización de rutas (cuando hay victoria)
-        7. Dibujado del jugador y la casa (meta)
-        8. Mensajes de victoria, game over o estado de entrenamiento
-        9. Dibujado de la barra lateral con controles y estadísticas
-        
-        Este orden específico garantiza que los elementos se superpongan correctamente,
-        donde los elementos más importantes (jugador, casa) aparecen por encima
-        de elementos de fondo (grid, obstáculos).
-        """
-        # Limpiar pantalla
-        self.screen.fill(GameConfig.WHITE)
+        self.screen.fill(GameConfig.GRID_BG)
+        self._draw_grid_lines()
 
-        # Dibujar grid y elementos básicos
-        self._draw_grid()
+        if self.game.avatar_heatmap_trained and hasattr(self.game, 'heat_map_pathfinder'):
+            self._draw_avatar_learned_heatmap()
 
-        # Dibujar matriz de movimiento (mapa de calor)
-        if GameConfig.SHOW_MOVEMENT_MATRIX:
-            self._draw_movement_matrix()
+        if GameConfig.SHOW_MOVEMENT_MATRIX and \
+                hasattr(self.game, 'player_movement_frequency_matrix') and \
+                self.game.player_movement_frequency_matrix is not None and \
+                self.game.player_movement_frequency_matrix.any():
+            self._draw_player_frequency_heatmap()
 
-        # Dibujar obstáculos
-        self._draw_obstacles()
-        
-        # Dibujar enemigos
-        self._draw_enemies()
+        self._draw_game_obstacles()
+        self._draw_all_enemies()
 
-        # Dibujar rutas si es necesario (antes del jugador y la casa)
-        if self.game.game_state.victory:
-            self._draw_paths()
+        if self.game.best_path_player and len(self.game.best_path_player) > 1:
+            if not (self.game.is_running and self.game.current_path_player and len(self.game.current_path_player) > 1):
+                self._draw_path_lines_on_grid(self.game.best_path_player, GameConfig.PATH_COLOR, line_width=2,
+                                              style="dashed")
 
-        # Dibujar jugador y casa
-        self._draw_player()
-        self._draw_house()
+        if self.game.current_path_player and len(self.game.current_path_player) > 1 and self.game.is_running:
+            self._draw_path_lines_on_grid(self.game.current_path_player, GameConfig.ORANGE, line_width=3, style="solid")
 
-        # Dibujar mensaje de victoria al final
+        self._draw_player_sprite()
+        self._draw_house_sprite()
+
         if self.game.game_state.victory:
             self._draw_victory_message()
-        # Dibujar mensaje de game over si aplica
-        elif hasattr(self.game, 'game_over') and self.game.game_over:
+        elif self.game.game_over:
             self._draw_game_over_message()
 
-        # Dibujar estado de entrenamiento
-        self._draw_training_status()
+        self._draw_ui_sidebar()
 
-        # Dibujar barra lateral
-        self._draw_sidebar()
+    def _draw_grid_lines(self):
+        for x_l in range(0, GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + 1, GameConfig.SQUARE_SIZE):
+            pygame.draw.line(self.screen, GameConfig.GRID_COLOR, (x_l, 0),
+                             (x_l, GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE))
+        for y_l in range(0, GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE + 1, GameConfig.SQUARE_SIZE):
+            pygame.draw.line(self.screen, GameConfig.GRID_COLOR, (0, y_l),
+                             (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, y_l))
 
-        # Actualizar pantalla
-        pygame.display.flip()
+    def _draw_avatar_learned_heatmap(self):
+        avatar_heatmap_data_matrix = self.game.heat_map_pathfinder.avatar_heat_map
 
-    def _draw_grid(self):
-        """
-        Dibuja el grid (cuadrícula) base del juego.
-        
-        Crea la estructura visual básica del juego mediante:
-        1. Un rectángulo de fondo que cubre toda el área del grid
-        2. Líneas verticales y horizontales que dividen el grid en celdas
-        
-        El grid proporciona la referencia visual para el posicionamiento
-        de todos los elementos del juego, incluyendo jugador, casa, obstáculos
-        y enemigos.
-        
-        Las líneas del grid se dibujan con un color más claro que el fondo
-        para crear suficiente contraste visual sin distraer del contenido principal.
-        """
-        # Dibujar fondo de la cuadrícula
-        grid_rect = pygame.Rect(
-            0, 0,
-            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
-            GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE
-        )
-        pygame.draw.rect(self.screen, GameConfig.GRID_BG, grid_rect)
+        if not hasattr(avatar_heatmap_data_matrix, 'any') or not avatar_heatmap_data_matrix.any(): return
+        max_heat_val_avatar = np.max(avatar_heatmap_data_matrix)
+        if max_heat_val_avatar == 0: return
 
-        # Dibujar líneas del grid
-        for x in range(0, GameConfig.GRID_WIDTH + 1):
-            pygame.draw.line(
-                self.screen,
-                GameConfig.EGGSHELL,
-                (x * GameConfig.SQUARE_SIZE, 0),
-                (x * GameConfig.SQUARE_SIZE, GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE),
-                1
+        for r_idx_avatar in range(GameConfig.GRID_HEIGHT):
+            for c_idx_avatar in range(GameConfig.GRID_WIDTH):
+                heat_value_cell = avatar_heatmap_data_matrix[r_idx_avatar, c_idx_avatar]
+                if heat_value_cell > 0:
+                    intensity_ratio_avatar = heat_value_cell / max_heat_val_avatar
+                    color_index_avatar = min(int(intensity_ratio_avatar * (len(GameConfig.HEAT_COLORS) - 1)),
+                                             len(GameConfig.HEAT_COLORS) - 1)
+                    chosen_heatmap_color = GameConfig.HEAT_COLORS[color_index_avatar]
+                    heatmap_cell_render_surface = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE),
+                                                                 pygame.SRCALPHA)
+                    base_alpha_heatmap = 60
+                    dynamic_alpha_for_heatmap = int(
+                        base_alpha_heatmap + (intensity_ratio_avatar * (120 - base_alpha_heatmap)))
+                    dynamic_alpha_for_heatmap = min(255, max(0, dynamic_alpha_for_heatmap))
+                    heatmap_cell_render_surface.fill((*chosen_heatmap_color, dynamic_alpha_for_heatmap))
+                    self.screen.blit(heatmap_cell_render_surface,
+                                     (c_idx_avatar * GameConfig.SQUARE_SIZE, r_idx_avatar * GameConfig.SQUARE_SIZE))
+
+    def _draw_player_frequency_heatmap(self):
+        player_freq_matrix = self.game.player_movement_frequency_matrix
+        if not player_freq_matrix.any(): return
+
+        max_player_freq_val = np.max(player_freq_matrix)
+        if max_player_freq_val == 0: return
+
+        for r_f_idx_player in range(GameConfig.GRID_HEIGHT):
+            for c_f_idx_player in range(GameConfig.GRID_WIDTH):
+                freq_val_player = player_freq_matrix[r_f_idx_player, c_f_idx_player]
+                if freq_val_player > 0:
+                    intensity_freq_player = freq_val_player / max_player_freq_val
+
+                    color_idx_freq_p = min(int(intensity_freq_player * (len(GameConfig.HEAT_COLORS) - 1)),
+                                           len(GameConfig.HEAT_COLORS) - 1)
+                    color_freq_p = GameConfig.HEAT_COLORS[color_idx_freq_p]
+
+                    freq_cell_surf_p = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE), pygame.SRCALPHA)
+                    alpha_freq_p = int(80 + intensity_freq_player * (180 - 80));
+                    alpha_freq_p = min(255, max(0, alpha_freq_p))
+                    freq_cell_surf_p.fill((*color_freq_p, alpha_freq_p))
+                    self.screen.blit(freq_cell_surf_p,
+                                     (c_f_idx_player * GameConfig.SQUARE_SIZE, r_f_idx_player * GameConfig.SQUARE_SIZE))
+
+                    if GameConfig.SHOW_VISIT_COUNT_ON_HEATMAP:
+                        font_visits_num = pygame.font.SysFont(None, 15)
+                        text_visits_num = font_visits_num.render(str(int(freq_val_player)), True, GameConfig.BLACK)
+                        text_visits_rect_num = text_visits_num.get_rect(center=(
+                            c_f_idx_player * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                            r_f_idx_player * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
+                        ))
+                        self.screen.blit(text_visits_num, text_visits_rect_num)
+
+    def _draw_game_obstacles(self):
+        for obs_p_tuple in self.game.game_state.obstacles:
+            obs_render_rect = pygame.Rect(
+                obs_p_tuple[0] * GameConfig.SQUARE_SIZE, obs_p_tuple[1] * GameConfig.SQUARE_SIZE,
+                GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE
             )
+            pygame.draw.rect(self.screen, GameConfig.OBSTACLE_COLOR, obs_render_rect)
 
-        for y in range(0, GameConfig.GRID_HEIGHT + 1):
-            pygame.draw.line(
-                self.screen,
-                GameConfig.EGGSHELL,
-                (0, y * GameConfig.SQUARE_SIZE),
-                (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, y * GameConfig.SQUARE_SIZE),
-                1
-            )
-
-    def _draw_obstacles(self):
-        """
-        Dibuja los obstáculos en el grid.
-        
-        Renderiza todos los obstáculos definidos en el estado del juego como
-        rectángulos sólidos. Cada obstáculo ocupa exactamente una celda del grid.
-        Los obstáculos son elementos permanentes del entorno que bloquean el 
-        movimiento del jugador y afectan los cálculos de rutas de los algoritmos.
-        
-        El color de los obstáculos está definido en GameConfig.OBSTACLE_COLOR
-        y por defecto son de color gris.
-        """
-        for obstacle in self.game.game_state.obstacles:
-            rect = pygame.Rect(
-                obstacle[0] * GameConfig.SQUARE_SIZE,
-                obstacle[1] * GameConfig.SQUARE_SIZE,
-                GameConfig.SQUARE_SIZE,
-                GameConfig.SQUARE_SIZE
-            )
-            pygame.draw.rect(self.screen, GameConfig.OBSTACLE_COLOR, rect)
-
-    def _draw_enemies(self):
-        """
-        Dibuja los enemigos en el grid.
-        
-        Renderiza todos los enemigos definidos en el estado del juego, utilizando:
-        - La imagen cargada para enemigos, si está disponible
-        - Un rectángulo de color como fallback si no hay imagen
-        
-        Los enemigos son elementos que el jugador debe evitar, funcionando como
-        obstáculos adicionales. Los enemigos tienen diferentes tipos y comportamientos,
-        representados visualmente con colores distintos o indicadores direccionales.
-        
-        El color base para enemigos está definido en GameConfig.ENEMY_COLOR
-        y se modifican según el tipo y estado de cada enemigo.
-        """
-        # Utilizar enemy_positions para compatibilidad o enemies para datos completos
+    def _draw_all_enemies(self):
         if hasattr(self.game.game_state, 'enemies') and isinstance(self.game.game_state.enemies, dict):
-            # Nueva estructura: diccionario de enemigos con datos completos
-            for enemy_id, enemy_data in self.game.game_state.enemies.items():
-                pos = enemy_data['position']
-                enemy_type = enemy_data.get('type', 'perseguidor')
-                direction = enemy_data.get('direction', (0, 0))
-                
-                # Dibujar enemigo según su tipo
-                self._draw_enemy_at_position(pos, enemy_type, direction)
+            for enemy_unique_id, data_of_enemy in self.game.game_state.enemies.items():
+                pos_of_enemy = data_of_enemy['position']
+                type_of_enemy = data_of_enemy.get('type', GameConfig.DEFAULT_ENEMY_TYPE)
+                self._draw_one_enemy_sprite(pos_of_enemy, type_of_enemy)
         elif hasattr(self.game.game_state, 'enemy_positions') and self.game.game_state.enemy_positions:
-            # Estructura de compatibilidad: conjunto de posiciones
-            for pos in self.game.game_state.enemy_positions:
-                self._draw_enemy_at_position(pos)
-        else:
-            # Mantener compatibilidad con estructura antigua (solo posiciones)
-            for pos in self.game.game_state.enemies:
-                # Tratar de manejar el caso donde enemies es un conjunto de posiciones
-                try:
-                    if isinstance(pos, tuple) and len(pos) == 2:
-                        self._draw_enemy_at_position(pos)
-                except:
-                    # Si hay error, intentar usar como está
-                    self._draw_enemy_at_position(pos)
-    
-    def _draw_enemy_at_position(self, pos, enemy_type='perseguidor', direction=(0, 0)):
-        """
-        Dibuja un enemigo en la posición especificada con el tipo y dirección dados.
-        
-        Args:
-            pos (tuple): Posición (x, y) del enemigo
-            enemy_type (str): Tipo de enemigo ('perseguidor', 'bloqueador', 'patrulla', 'aleatorio')
-            direction (tuple): Dirección (dx, dy) hacia donde apunta el enemigo
-        """
-        # Seleccionar color según el tipo de enemigo
-        enemy_colors = {
-            'perseguidor': GameConfig.RED,               # Rojo para perseguidores
-            'bloqueador': (255, 128, 0),                 # Naranja para bloqueadores
-            'patrulla': (148, 0, 211),                   # Púrpura para patrullas
-            'aleatorio': (70, 130, 180)                  # Azul acero para aleatorios
+            for pos_e_from_set in self.game.game_state.enemy_positions:
+                self._draw_one_enemy_sprite(pos_e_from_set, GameConfig.DEFAULT_ENEMY_TYPE)
+
+    def _draw_one_enemy_sprite(self, enemy_on_grid_pos, enemy_type_name_str):
+        enemy_type_color_map = {
+            'perseguidor': GameConfig.RED, 'bloqueador': GameConfig.ORANGE,
+            'patrulla': GameConfig.PURPLE, 'aleatorio': GameConfig.CYAN
         }
-        enemy_color = enemy_colors.get(enemy_type, GameConfig.ENEMY_COLOR)
-        
-        x, y = pos
-        
-        if self.enemy_img:
-            # Dibujar imagen del enemigo
-            self.screen.blit(
-                self.enemy_img,
-                (x * GameConfig.SQUARE_SIZE, y * GameConfig.SQUARE_SIZE)
-            )
-            
-            # Añadir un indicador del tipo de enemigo (círculo pequeño de color)
-            indicator_radius = GameConfig.SQUARE_SIZE // 6
-            indicator_pos = (
-                x * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE - indicator_radius - 2,
-                y * GameConfig.SQUARE_SIZE + indicator_radius + 2
-            )
-            pygame.draw.circle(self.screen, enemy_color, indicator_pos, indicator_radius)
+        color_for_this_enemy = enemy_type_color_map.get(enemy_type_name_str, GameConfig.ENEMY_COLOR)
+        pixel_render_x_e, pixel_render_y_e = enemy_on_grid_pos[0] * GameConfig.SQUARE_SIZE, enemy_on_grid_pos[
+            1] * GameConfig.SQUARE_SIZE
+
+        if self.enemy_img and self.enemy_img.get_width() > 0 and self.enemy_img.get_height() > 0:
+            self.screen.blit(self.enemy_img, (pixel_render_x_e, pixel_render_y_e))
+            indicator_radius = max(3, GameConfig.SQUARE_SIZE // 7)
+            indicator_pos_x = pixel_render_x_e + GameConfig.SQUARE_SIZE - indicator_radius - 2
+            indicator_pos_y = pixel_render_y_e + indicator_radius + 2
+            pygame.draw.circle(self.screen, color_for_this_enemy, (indicator_pos_x, indicator_pos_y), indicator_radius)
         else:
-            # Dibujar rectángulo con el color según el tipo
-            rect = pygame.Rect(
-                x * GameConfig.SQUARE_SIZE,
-                y * GameConfig.SQUARE_SIZE,
-                GameConfig.SQUARE_SIZE,
-                GameConfig.SQUARE_SIZE
-            )
-            pygame.draw.rect(self.screen, enemy_color, rect)
-            
-            # Dibujar indicador de dirección si tiene dirección
-            if direction != (0, 0):
-                dx, dy = direction
-                center_x = x * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                center_y = y * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                
-                # Calcular punto final de la flecha de dirección
-                end_x = center_x + int(dx * GameConfig.SQUARE_SIZE * 0.3)
-                end_y = center_y + int(dy * GameConfig.SQUARE_SIZE * 0.3)
-                
-                # Dibujar línea de dirección
-                pygame.draw.line(
-                    self.screen,
-                    GameConfig.WHITE,
-                    (center_x, center_y),
-                    (end_x, end_y),
-                    2
-                )
+            shape_rect_enemy = pygame.Rect(pixel_render_x_e, pixel_render_y_e, GameConfig.SQUARE_SIZE,
+                                           GameConfig.SQUARE_SIZE)
+            pygame.draw.rect(self.screen, color_for_this_enemy, shape_rect_enemy)
 
-    def _draw_player(self):
-        """
-        Dibuja al jugador en su posición actual.
-        
-        Renderiza al jugador en la posición almacenada en el estado del juego,
-        utilizando:
-        - La imagen cargada para el jugador, si está disponible
-        - Un rectángulo de color como fallback si no hay imagen
-        
-        El jugador es el elemento principal controlado por el usuario o los
-        algoritmos de IA. Su posición se actualiza durante el juego y determina
-        cuándo se alcanza la meta (casa).
-        
-        El color de fallback para el jugador está definido en GameConfig.PLAYER_COLOR
-        y por defecto es azul.
-        """
+    def _draw_player_sprite(self):
         if self.game.game_state.player_pos:
-            if self.player_img:
-                self.screen.blit(
-                    self.player_img,
-                    (
-                        self.game.game_state.player_pos[0] * GameConfig.SQUARE_SIZE,
-                        self.game.game_state.player_pos[1] * GameConfig.SQUARE_SIZE
-                    )
-                )
+            px_p = self.game.game_state.player_pos[0] * GameConfig.SQUARE_SIZE
+            py_p = self.game.game_state.player_pos[1] * GameConfig.SQUARE_SIZE
+            if self.player_img and self.player_img.get_width() > 0 and self.player_img.get_height() > 0:
+                self.screen.blit(self.player_img, (px_p, py_p))
             else:
-                rect = pygame.Rect(
-                    self.game.game_state.player_pos[0] * GameConfig.SQUARE_SIZE,
-                    self.game.game_state.player_pos[1] * GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE
-                )
-                pygame.draw.rect(self.screen, GameConfig.PLAYER_COLOR, rect)
+                pygame.draw.rect(self.screen, GameConfig.PLAYER_COLOR,
+                                 (px_p, py_p, GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
 
-    def _draw_house(self):
-        """
-        Dibuja la casa (meta) en su posición establecida.
-        
-        Renderiza la casa en la posición almacenada en el estado del juego,
-        utilizando:
-        - La imagen cargada para la casa, si está disponible
-        - Un rectángulo de color como fallback si no hay imagen
-        
-        La casa representa la meta del juego, el punto que el jugador debe
-        alcanzar. Cuando el jugador llega a esta posición, se activa el estado
-        de victoria.
-        
-        El color de fallback para la casa está definido en GameConfig.HOUSE_COLOR
-        y por defecto es verde.
-        """
+    def _draw_house_sprite(self):
         if self.game.game_state.house_pos:
-            if self.house_img:
-                self.screen.blit(
-                    self.house_img,
-                    (
-                        self.game.game_state.house_pos[0] * GameConfig.SQUARE_SIZE,
-                        self.game.game_state.house_pos[1] * GameConfig.SQUARE_SIZE
-                    )
-                )
+            px_h = self.game.game_state.house_pos[0] * GameConfig.SQUARE_SIZE
+            py_h = self.game.game_state.house_pos[1] * GameConfig.SQUARE_SIZE
+            if self.house_img and self.house_img.get_width() > 0 and self.house_img.get_height() > 0:
+                self.screen.blit(self.house_img, (px_h, py_h))
             else:
-                rect = pygame.Rect(
-                    self.game.game_state.house_pos[0] * GameConfig.SQUARE_SIZE,
-                    self.game.game_state.house_pos[1] * GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE,
-                    GameConfig.SQUARE_SIZE
-                )
-                pygame.draw.rect(self.screen, GameConfig.HOUSE_COLOR, rect)
+                pygame.draw.rect(self.screen, GameConfig.HOUSE_COLOR,
+                                 (px_h, py_h, GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
 
-    def _draw_paths(self):
-        """
-        Dibuja las rutas calculadas en el grid.
-        
-        Este método visualiza la mejor ruta encontrada por los algoritmos de
-        pathfinding o IA (almacenada en best_path). La visualización consiste en:
-        - Líneas que conectan puntos consecutivos de la ruta
-        - Un borde negro para mejor visibilidad
-        - Color verde para la ruta principal
-        
-        Las líneas se dibujan desde el centro de cada celda al centro de la siguiente,
-        creando un camino visual continuo. Esta visualización solo se activa cuando
-        el jugador ha alcanzado la meta (estado de victoria).
-        
-        La representación visual utiliza líneas de diferente grosor para crear
-        un efecto de profundidad y mejor legibilidad.
-        """
-        # Dibujar la mejor ruta si existe
-        if self.game.best_path:
-            # Dibujar líneas verdes para la mejor ruta
-            for i in range(len(self.game.best_path) - 1):
-                start_pos = self.game.best_path[i]
-                end_pos = self.game.best_path[i + 1]
+    def _draw_path_lines_on_grid(self, path_coordinate_list, path_line_rgb_color, line_width=3, style="solid"):
+        if not path_coordinate_list or len(path_coordinate_list) < 2: return
 
-                start_pixel = (
-                    start_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    start_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
-                end_pixel = (
-                    end_pos[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                    end_pos[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                )
+        for i_path_segment in range(len(path_coordinate_list) - 1):
+            start_node_tuple = path_coordinate_list[i_path_segment]
+            end_node_tuple = path_coordinate_list[i_path_segment + 1]
+            start_center_pixels = (start_node_tuple[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                                   start_node_tuple[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2)
+            end_center_pixels = (end_node_tuple[0] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
+                                 end_node_tuple[1] * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2)
 
-                # Dibujar línea con borde negro
-                pygame.draw.line(
-                    self.screen,
-                    GameConfig.BLACK,
-                    start_pixel,
-                    end_pixel,
-                    4  # Línea más gruesa para el borde
-                )
-                pygame.draw.line(
-                    self.screen,
-                    GameConfig.GREEN,
-                    start_pixel,
-                    end_pixel,
-                    2  # Línea más delgada para el color principal
-                )
+            if style == "dashed":
+                dx = end_center_pixels[0] - start_center_pixels[0]
+                dy = end_center_pixels[1] - start_center_pixels[1]
+                dist = max(1, (dx ** 2 + dy ** 2) ** 0.5)
+                num_dashes = int(dist / (GameConfig.SQUARE_SIZE / 2.5))  # Ajustar densidad
+                if num_dashes < 1: num_dashes = 1  # Al menos un guión (o línea sólida si es corto)
 
-    def _draw_movement_matrix(self):
-        """
-        Dibuja el mapa de calor basado en la matriz de movimiento.
-        
-        Visualiza la frecuencia de visitas a cada celda del grid mediante:
-        - Rectángulos semi-transparentes con colores que varían según la intensidad
-        - Valores numéricos que muestran la cantidad exacta de visitas
-        
-        La intensidad del color se calcula en relación al valor máximo en la matriz.
-        Los colores progresan a través de una escala predefinida en GameConfig.HEAT_COLORS,
-        generalmente desde amarillo (baja intensidad) hasta rojo oscuro (alta intensidad).
-        
-        Esta visualización ayuda a entender los patrones de movimiento del jugador
-        o algoritmos, mostrando qué áreas son más visitadas durante la exploración.
-        
-        Este método solo tiene efecto si GameConfig.SHOW_MOVEMENT_MATRIX es True
-        y la matriz contiene valores mayores que cero.
-        """
-        if not self.game.movement_matrix.any():  # Si la matriz está vacía
-            return
+                for i_dash in range(num_dashes):
+                    t0 = i_dash / num_dashes
+                    t1 = (i_dash + 0.5) / num_dashes  # Mitad del segmento para guión
+                    if t1 > 1.0: t1 = 1.0  # Asegurar que no exceda
 
-        max_value = np.max(self.game.movement_matrix)
-        if max_value == 0:
-            return
-
-        for y in range(GameConfig.GRID_HEIGHT):
-            for x in range(GameConfig.GRID_WIDTH):
-                value = self.game.movement_matrix[y][x]
-                if value > 0:
-                    # Calcular color basado en el valor
-                    intensity = value / max_value
-
-                    # Obtener color interpolado
-                    color_index = min(int(intensity * (len(GameConfig.HEAT_COLORS) - 1)),
-                                      len(GameConfig.HEAT_COLORS) - 1)
-                    color = GameConfig.HEAT_COLORS[color_index]
-
-                    # Dibujar rectángulo semi-transparente
-                    rect = pygame.Rect(
-                        x * GameConfig.SQUARE_SIZE,
-                        y * GameConfig.SQUARE_SIZE,
-                        GameConfig.SQUARE_SIZE,
-                        GameConfig.SQUARE_SIZE
-                    )
-
-                    # Crear superficie con alpha
-                    s = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
-                    s.set_alpha(int(128 + intensity * 127))  # Alpha aumenta con la intensidad
-                    s.fill(color)
-                    self.screen.blit(s, rect)
-
-                    # Mostrar número de visitas
-                    font = pygame.font.SysFont(None, 18)  # Tamaño aumentado
-                    text = font.render(str(int(value)), True, GameConfig.WHITE)
-                    text_rect = text.get_rect(center=(
-                        x * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2,
-                        y * GameConfig.SQUARE_SIZE + GameConfig.SQUARE_SIZE // 2
-                    ))
-                    self.screen.blit(text, text_rect)
-
-    def _draw_training_status(self):
-        """
-        Dibuja el estado actual del entrenamiento si está en progreso.
-        
-        Muestra información sobre el proceso de entrenamiento activo mediante:
-        - Un texto con información de progreso (iteración actual/total)
-        - Un fondo semitransparente para mejor legibilidad
-        - Mensajes adicionales de estado si están disponibles
-        
-        Esta información se coloca en la parte superior central de la pantalla
-        para proporcionar retroalimentación inmediata sobre el progreso del
-        entrenamiento sin interrumpir la visualización del juego.
-        
-        Este método solo tiene efecto si hay un entrenamiento activo
-        (game.is_training es True).
-        """
-        if not hasattr(self.game, 'is_training') or not self.game.is_training:
-            return
-            
-        # Configuración
-        font = pygame.font.SysFont(None, 24)
-        status_text = f"Entrenando... ({getattr(self.game, 'training_current_iteration', 0)}/{getattr(self.game, 'training_total_iterations', 0)})"
-        
-        # Crear texto
-        text = font.render(status_text, True, GameConfig.WHITE)
-        
-        # Calcular posición
-        text_rect = text.get_rect(
-            centerx=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
-            top=10
-        )
-        
-        # Crear fondo semitransparente
-        background = pygame.Surface((text_rect.width + 20, text_rect.height + 10))
-        background.fill(GameConfig.BLACK)
-        background.set_alpha(180)
-        
-        background_rect = background.get_rect(center=text_rect.center)
-        
-        # Dibujar fondo y texto
-        self.screen.blit(background, background_rect)
-        self.screen.blit(text, text_rect)
-        
-        # Si hay mensaje adicional de entrenamiento
-        if hasattr(self.game, 'training_status_message') and self.game.training_status_message:
-            status_font = pygame.font.SysFont(None, 18)
-            status_text = status_font.render(self.game.training_status_message, True, GameConfig.EGGSHELL)
-            status_rect = status_text.get_rect(
-                centerx=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
-                top=text_rect.bottom + 5
-            )
-            self.screen.blit(status_text, status_rect)
+                    p1 = (start_center_pixels[0] + dx * t0,
+                          start_center_pixels[1] + dy * t0)
+                    p2 = (start_center_pixels[0] + dx * t1,
+                          start_center_pixels[1] + dy * t1)
+                    pygame.draw.line(self.screen, path_line_rgb_color, p1, p2, line_width)
+            else:
+                pygame.draw.line(self.screen, GameConfig.BLACK, start_center_pixels, end_center_pixels, line_width + 2)
+                pygame.draw.line(self.screen, path_line_rgb_color, start_center_pixels, end_center_pixels, line_width)
 
     def _draw_victory_message(self):
-        """
-        Dibuja el mensaje de victoria cuando el jugador alcanza la meta.
-        
-        Muestra un mensaje de felicitación al jugador mediante:
-        - Un texto grande y destacado ("¡Felicidades!")
-        - Un fondo semitransparente para realzar el mensaje
-        
-        El mensaje se coloca en la parte superior central de la pantalla
-        para ser inmediatamente visible sin obstruir la visualización
-        de la ruta completa.
-        
-        Este método solo se activa cuando el jugador ha alcanzado la meta
-        (game_state.victory es True).
-        """
-        font = pygame.font.SysFont(None, 48)
-        text = font.render("¡Felicidades!", True, GameConfig.BLACK)
-
-        # Calcular posición para el mensaje (en la parte superior de la pantalla)
-        text_rect = text.get_rect(
-            centerx=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
-            top=10  # 10 píxeles desde la parte superior
+        font_vic = pygame.font.SysFont(None, 60)
+        text_vic = font_vic.render("¡FELICIDADES!", True, GameConfig.GREEN, GameConfig.DARK_GRAY)
+        rect_vic = text_vic.get_rect(
+            centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
+            centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 3
         )
-
-        # Crear un fondo semi-transparente para el texto
-        background = pygame.Surface((text_rect.width + 20, text_rect.height + 10))
-        background.fill(GameConfig.WHITE)
-        background.set_alpha(200)  # Semi-transparente
-
-        background_rect = background.get_rect(center=text_rect.center)
-
-        # Dibujar el fondo y el texto
-        self.screen.blit(background, background_rect)
-        self.screen.blit(text, text_rect)
+        self.screen.blit(text_vic, rect_vic)
 
     def _draw_game_over_message(self):
-        """
-        Dibuja el mensaje de Game Over cuando el jugador colisiona con un enemigo.
-        
-        Muestra un mensaje de game over mediante:
-        - Un texto grande y destacado en color rojo ("¡Game Over!")
-        - Un fondo semitransparente para realzar el mensaje
-        
-        El mensaje se coloca en el centro de la pantalla para maximizar
-        su visibilidad e indicar claramente al jugador que el juego ha terminado.
-        
-        Este método solo se activa cuando el jugador ha colisionado con un enemigo
-        (game.game_over es True).
-        """
-        font = pygame.font.SysFont(None, 72)  # Fuente más grande para destacar
-        text = font.render("¡GAME OVER!", True, GameConfig.RED)
-
-        # Calcular posición para el mensaje (en el centro de la pantalla)
-        text_rect = text.get_rect(
-            center=(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE // 2,
-                GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE // 2
-            )
+        font_gameover = pygame.font.SysFont(None, 70)
+        text_gameover = font_gameover.render("GAME OVER", True, GameConfig.RED, GameConfig.BLACK)
+        rect_gameover = text_gameover.get_rect(
+            centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
+            centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 2
         )
+        self.screen.blit(text_gameover, rect_gameover)
+        font_instr_restart = pygame.font.SysFont(None, 24)
+        text_instr_restart = font_instr_restart.render("Presiona 'R' para reiniciar", True, GameConfig.WHITE)
+        rect_instr_restart = text_instr_restart.get_rect(centerx=rect_gameover.centerx, top=rect_gameover.bottom + 10)
+        self.screen.blit(text_instr_restart, rect_instr_restart)
 
-        # Crear un fondo semi-transparente para el texto
-        background = pygame.Surface((text_rect.width + 40, text_rect.height + 20))
-        background.fill(GameConfig.BLACK)
-        background.set_alpha(180)  # Semi-transparente
-
-        background_rect = background.get_rect(center=text_rect.center)
-
-        # Dibujar el fondo y el texto
-        self.screen.blit(background, background_rect)
-        self.screen.blit(text, text_rect)
-
-        # Añadir un mensaje adicional con instrucciones
-        font_small = pygame.font.SysFont(None, 24)
-        instructions = font_small.render("Presiona ESPACIO para continuar", True, GameConfig.WHITE)
-        instructions_rect = instructions.get_rect(
-            centerx=text_rect.centerx,
-            top=text_rect.bottom + 10
+    def _draw_ui_sidebar(self):
+        sidebar_full_rect = pygame.Rect(
+            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, 0,
+            GameConfig.SIDEBAR_WIDTH, GameConfig.SCREEN_HEIGHT
         )
-        self.screen.blit(instructions, instructions_rect)
+        pygame.draw.rect(self.screen, GameConfig.SIDEBAR_BG, sidebar_full_rect)
 
-    def _draw_progress_bar(self, x, y, width, height, progress, bg_color, fg_color, border_color):
-        """
-        Dibuja una barra de progreso personalizada.
-        
-        Args:
-            x (int): Posición x de la barra
-            y (int): Posición y de la barra
-            width (int): Ancho total de la barra
-            height (int): Altura de la barra
-            progress (float): Valor de progreso (0-100)
-            bg_color (tuple): Color RGB del fondo de la barra
-            fg_color (tuple): Color RGB de la barra de progreso
-            border_color (tuple): Color RGB del borde de la barra
-        """
-        # Asegurar que el progreso esté entre 0 y 100
-        progress = max(0, min(100, progress))
-        
-        # Dibujar el fondo de la barra
-        bg_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(self.screen, bg_color, bg_rect)
-        
-        # Dibujar el progreso
-        if progress > 0:
-            fg_width = int(width * (progress / 100.0))
-            fg_rect = pygame.Rect(x, y, fg_width, height)
-            pygame.draw.rect(self.screen, fg_color, fg_rect)
-        
-        # Dibujar el borde
-        pygame.draw.rect(self.screen, border_color, bg_rect, 1)
-        
-        # Mostrar el porcentaje de progreso en texto
-        font = pygame.font.SysFont(None, 18)
-        text = font.render(f"{int(progress)}%", True, GameConfig.BLACK)
-        text_rect = text.get_rect(center=(x + width // 2, y + height // 2))
-        self.screen.blit(text, text_rect)
+        mouse_current_pos = pygame.mouse.get_pos()
+        mouse_left_button_pressed, _, _ = pygame.mouse.get_pressed()
 
-    def _draw_sidebar(self):
-        """Dibuja la barra lateral con botones y estadísticas"""
-        # Dibujar fondo de la barra lateral
-        sidebar_rect = pygame.Rect(
-            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE,
-            0,
-            GameConfig.SIDEBAR_WIDTH,
-            GameConfig.SCREEN_HEIGHT
-        )
-        pygame.draw.rect(self.screen, GameConfig.SIDEBAR_BG, sidebar_rect)
+        font_buttons_sidebar = pygame.font.SysFont(None, 20)
+        font_titles_sidebar = pygame.font.SysFont(None, 24)
 
-        # Obtener posición del mouse y estado de botones
-        mouse_pos = pygame.mouse.get_pos()
-        mouse_pressed = pygame.mouse.get_pressed()[0]
+        main_title_surf = font_titles_sidebar.render("Control Juego IA", True, GameConfig.WHITE)
+        main_title_ui_rect = main_title_surf.get_rect(centerx=sidebar_full_rect.centerx, top=10)
+        self.screen.blit(main_title_surf, main_title_ui_rect)
 
-        # Configuración de botones
-        button_margin = 10
-        button_height = 30
-        font = pygame.font.SysFont(None, 20)
-        font_title = pygame.font.SysFont(None, 24)
-
-        # Título del juego
-        title = font_title.render("SIMULACIÓN DE MOVIMIENTO", True, GameConfig.WHITE)
-        title_rect = title.get_rect(
-            centerx=sidebar_rect.centerx,
-            top=10
-        )
-        self.screen.blit(title, title_rect)
-
-        # Sección de controles
-        controls_title = font_title.render("CONTROLES", True, GameConfig.EGGSHELL)
-        controls_title_rect = controls_title.get_rect(
-            centerx=sidebar_rect.centerx,
-            top=title_rect.bottom + 20
-        )
-        self.screen.blit(controls_title, controls_title_rect)
-
-        # Botones
-        # Botones
-        button_texts = [
-            ("start", "Iniciar/Detener (Space)"),
-            ("reset", "Reiniciar (R)"),
-            ("headless", "Entrenamiento (H)"),
-            ("edit_house", "Editar Casa (C)"),
-            ("edit_obstacles", "Editar Obstáculos (O)"),
-            ("edit_enemies", "Editar Enemigos (E)"),
-            ("reposition_avatar", "Reposicionar Avatar"),
-            ("clear_obstacles", "Limpiar Obstáculos (L)")
+        sidebar_button_definitions = [
+            ("start", "Iniciar/Detener (Space)"), ("reset", "Reiniciar Juego (R)"),
+            ("train_player_agent", "Ent. Agente Jugador (H)"),
+            ("train_enemy_agent", "Ent. Agente Enemigo (Q)"),
+            ("stop_train", "Detener Entrenamientos"),
+            ("edit_player", "Editar Pos Jugador (P)"), ("edit_house", "Editar Pos Casa (C)"),
+            ("edit_obstacles", "Editar Obstáculos (O)"), ("edit_enemies", "Editar Enemigos (E)"),
+            ("clear_obstacles", "Limpiar Obstáculos"), ("clear_enemies", "Limpiar Enemigos"),
+            ("use_heat_map", "Jugador Sigue Heatmap (N)"),
+            ("visualize_heat_map", "Ver Heatmap Avatar (V)"),
+            ("reset_heat_map", "Resetear Heatmap Av."),
+            ("toggle_edit_avatar_heatmap_iters", f"Iter HM Av: ...")
         ]
 
-        # Calcular altura total para centrar
-        total_height = len(button_texts) * button_height + (len(button_texts) - 1) * 10
-        start_y = controls_title_rect.bottom + 10
+        button_y_start_offset = main_title_ui_rect.bottom + 20
+        button_render_height = 26
+        button_vertical_margin = 7
+        self.button_rects.clear()
 
-        # Inicializar diccionario de rectángulos de botones
-        self.button_rects = {}
-
-        # Dibujar botones
-        for i, (button_id, button_text) in enumerate(button_texts):
-            button_y = start_y + i * (button_height + 10)
-            button_rect = pygame.Rect(
-                GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
-                button_y,
-                GameConfig.SIDEBAR_WIDTH - 2 * button_margin,
-                button_height
+        for i, (button_id_str, button_text_str) in enumerate(sidebar_button_definitions):
+            current_button_rect = pygame.Rect(
+                sidebar_full_rect.left + button_vertical_margin,
+                button_y_start_offset + i * (button_render_height + button_vertical_margin),
+                sidebar_full_rect.width - 2 * button_vertical_margin,
+                button_render_height
             )
+            self.button_rects[button_id_str] = current_button_rect
 
-            is_hovered = button_rect.collidepoint(mouse_pos)
-            is_pressed = is_hovered and mouse_pressed
+            mouse_is_over_button = current_button_rect.collidepoint(mouse_current_pos)
+            button_is_being_clicked = mouse_is_over_button and mouse_left_button_pressed
 
-            # Determinar color del botón
-            if is_pressed:
-                button_color = GameConfig.BUTTON_FOCUS
-                text_color = GameConfig.WHITE
-            elif is_hovered:
-                button_color = GameConfig.BUTTON_HOVER
-                text_color = GameConfig.BLACK
-            else:
-                button_color = GameConfig.BUTTON_BG
-                text_color = GameConfig.BLACK
+            button_fill_color = GameConfig.BUTTON_BG
+            button_text_color = GameConfig.BUTTON_TEXT
+            current_text_to_display = button_text_str
+            is_active_input_field = False
 
-            # Dibujar botón
-            pygame.draw.rect(self.screen, button_color, button_rect, border_radius=5)
+            if button_id_str == "toggle_edit_avatar_heatmap_iters":
+                field_id_for_button = 'avatar_heatmap_iters'
+                is_active_input_field = (self.game.input_field_active == field_id_for_button)
+                current_val_str = self.game.input_buffer if is_active_input_field else str(
+                    self.game.avatar_heatmap_training_iterations)
+                cursor_str = "|" if is_active_input_field and pygame.time.get_ticks() % 1000 < 500 else ""
+                current_text_to_display = f"Iter HM Av: {current_val_str}{cursor_str}"
 
-            # Efecto de hover
-            if is_hovered and not is_pressed:
-                pygame.draw.rect(self.screen, GameConfig.BUTTON_FOCUS, button_rect, 2, border_radius=5)
+            if is_active_input_field:
+                button_fill_color = GameConfig.BLUE
+            elif button_is_being_clicked:
+                button_fill_color = GameConfig.BUTTON_ACTIVE
+            elif mouse_is_over_button:
+                button_fill_color = GameConfig.BUTTON_HOVER
 
-            # Texto del botón
-            text_surface = font.render(button_text, True, text_color)
-            text_rect = text_surface.get_rect(center=button_rect.center)
+            if button_is_being_clicked and not is_active_input_field:
+                button_text_color = GameConfig.BUTTON_TEXT_ACTIVE
 
-            # Ajustar posición del texto si está presionado
-            if is_pressed:
-                text_rect.y += 1
+            pygame.draw.rect(self.screen, button_fill_color, current_button_rect, border_radius=4)
+            if mouse_is_over_button and not button_is_being_clicked and not is_active_input_field:
+                pygame.draw.rect(self.screen, GameConfig.BUTTON_FOCUS, current_button_rect, 1, border_radius=4)
 
-            self.screen.blit(text_surface, text_rect)
+            text_surf_for_button = font_buttons_sidebar.render(current_text_to_display, True, button_text_color)
+            text_rect_for_button = text_surf_for_button.get_rect(center=current_button_rect.center)
+            if button_is_being_clicked and not is_active_input_field: text_rect_for_button.y += 1
+            self.screen.blit(text_surf_for_button, text_rect_for_button)
 
-            # Guardar rectángulo para detección de clics
-            self.button_rects[button_id] = button_rect
-
-        # Estadísticas
-        stats_y = controls_title_rect.bottom + total_height + 20
-        font_stats = pygame.font.SysFont(None, 22)
-        title_stats = font_stats.render("ESTADÍSTICAS", True, GameConfig.EGGSHELL)
-        title_stats_rect = title_stats.get_rect(
-            centerx=sidebar_rect.centerx,
-            top=stats_y
-        )
-        self.screen.blit(title_stats, title_stats_rect)
-
-        stats = [
-            f"Ejecuciones Visibles: {getattr(self.game, 'training_visible_executions', 0)}",
-            f"Ejecuciones Invisibles: {getattr(self.game, 'training_invisible_executions', 0)}",
-            f"Total Ejecuciones: {getattr(self.game, 'training_visible_executions', 0) + getattr(self.game, 'training_invisible_executions', 0)}",
-            f"Progreso Entrenamiento: {getattr(self.game, 'training_progress', 0):.2f}%"
-        ]
-
-        font_stats_text = pygame.font.SysFont(None, 20)
-        for i, stat in enumerate(stats):
-            text = font_stats_text.render(stat, True, GameConfig.EGGSHELL)
-            text_rect = text.get_rect(
-                left=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
-                top=title_stats_rect.bottom + 20 + i * 25
-            )
-            self.screen.blit(text, text_rect)
-        
-        # Dibujar barra de progreso de entrenamiento
-        progress_title = font_stats_text.render("Progreso de Entrenamiento:", True, GameConfig.EGGSHELL)
-        progress_title_rect = progress_title.get_rect(
-            left=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
-            top=title_stats_rect.bottom + 20 + len(stats) * 25
-        )
-        self.screen.blit(progress_title, progress_title_rect)
-        
-        # Obtener el progreso actual
-        training_progress = getattr(self.game, 'training_progress', 0)
-        
-        # Dibujar la barra de progreso
-        self._draw_progress_bar(
-            x=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
-            y=progress_title_rect.bottom + 5,
-            width=GameConfig.SIDEBAR_WIDTH - 2 * button_margin,
-            height=15,
-            progress=training_progress,
-            bg_color=GameConfig.BUTTON_BG,
-            fg_color=self._get_progress_color(training_progress),
-            border_color=GameConfig.BLACK
-        )
-        
-        # Añadir información adicional sobre el entrenamiento si está en curso
-        if hasattr(self.game, 'is_training') and self.game.is_training:
-            status_text = f"Ejecutando iteración {getattr(self.game, 'training_current_iteration', 0)}/{getattr(self.game, 'training_total_iterations', 0)}"
-            status_render = font_stats_text.render(status_text, True, GameConfig.EGGSHELL)
-            status_rect = status_render.get_rect(
-                left=GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE + button_margin,
-                top=progress_title_rect.bottom + 25
-            )
-            self.screen.blit(status_render, status_rect)
-    def get_button_at(self, pos):
-        """Devuelve el ID del botón en la posición dada o None si no hay botón"""
-        for button_id, rect in self.button_rects.items():
-            if rect.collidepoint(pos):
-                return button_id
+    def get_button_at(self, mouse_click_coordinates):
+        for button_identifier, rect_object_button in self.button_rects.items():
+            if rect_object_button.collidepoint(mouse_click_coordinates):
+                return button_identifier
         return None
-    def _get_progress_color(self, progress):
-        """
-        Devuelve un color basado en el progreso del entrenamiento.
-        
-        Args:
-            progress (float): Valor de progreso (0-100)
-            
-        Returns:
-            tuple: Color RGB representando el progreso (rojo -> amarillo -> verde -> azul)
-        """
-        # Asegurar que el progreso esté entre 0 y 100
-        progress = max(0, min(100, progress))
-        
-        if progress < 25:
-            # Rojo a amarillo (0-25%)
-            r = 255
-            g = int(255 * (progress / 25))
-            b = 0
-        elif progress < 50:
-            # Amarillo a verde claro (25-50%)
-            r = int(255 * (1 - (progress - 25) / 25))
-            g = 255
-            b = 0
-        elif progress < 75:
-            # Verde claro a verde (50-75%)
-            r = 0
-            g = 255
-            b = int(255 * ((progress - 50) / 25))
-        else:
-            # Verde a azul verdoso (75-100%)
-            r = 0
-            g = int(255 * (1 - (progress - 75) / 25))
-            b = 255
-        
-        # Asegurarse de que los valores RGB estén dentro del rango 0-255
-        r = max(0, min(255, r))
-        g = max(0, min(255, g))
-        b = max(0, min(255, b))
-        
-        return (r, g, b)
