@@ -39,14 +39,6 @@ El avatar debe navegar un grid desde una posición inicial hasta una "casa" (met
 9. [Equipo de Desarrollo](#equipo-de-desarrollo)
 10. [Solución de Problemas (FAQ)](#solución-de-problemas-faq)
 
-### Capturas de Pantalla
-*(Idealmente, incluir aquí imágenes de:)*
-*- Interfaz principal con avatar, casa, obstáculos.*
-*- Un enemigo en el mapa.*
-*- Visualización del mapa de calor del avatar.*
-*- Visualización de una ruta del jugador.*
-*- La UI lateral con los botones.*
-
 ---
 
 ## Características Principales
@@ -175,8 +167,6 @@ La barra lateral contiene botones que replican y extienden la funcionalidad de l
 ---
 
 ## Estructura del Proyecto
-Use code with caution.
-Markdown
 JuegoIA/
 ├── main.py # Punto de entrada principal
 ├── Game.py # Clase principal del juego, maneja lógica y bucle principal
