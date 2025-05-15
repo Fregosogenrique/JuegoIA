@@ -167,15 +167,15 @@ La barra lateral contiene botones que replican y extienden la funcionalidad de l
 ---
 
 ## Estructura del Proyecto
-JuegoIA/
-├── main.py # Punto de entrada principal
-├── Game.py # Clase principal del juego, maneja lógica y bucle principal
-├── GameState.py # Clase para gestionar el estado del juego (posiciones, obstáculos, etc.)
-├── render.py # Clase para dibujar todos los elementos y la UI
-├── config.py # Constantes y configuraciones del juego y IA
-├── ADB.py # Implementación del Agente Q-learning
-├── HeatMapPathfinding.py # Implementación del pathfinding basado en Mapas de Calor
-└── README.md # Esta documentación
+### JuegoIA/
+    ├── main.py # Punto de entrada principal
+    ├── Game.py # Clase principal del juego, maneja lógica y bucle principal
+    ├── GameState.py # Clase para gestionar el estado del juego (posiciones, obstáculos, etc.)
+    ├── render.py # Clase para dibujar todos los elementos y la UI
+    ├── config.py # Constantes y configuraciones del juego y IA
+    ├── ADB.py # Implementación del Agente Q-learning
+    ├── HeatMapPathfinding.py # Implementación del pathfinding basado en Mapas de Calor
+    └── README.md # Esta documentación
 ---
 
 ## Detalles Técnicos de IA
