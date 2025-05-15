@@ -4,17 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 1.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador">
-      <change beforePath="$PROJECT_DIR$/&#10;ADB.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/&#10;Game.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/&#10;render.py" beforeDir="false" />
+    <list default="true" id="7af89b1d-8126-487a-ba78-6ec877bd013c" name="Changes" comment="Version 1.6&#10;Porfin jala hijuesumadre">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ADB.py" beforeDir="false" afterPath="$PROJECT_DIR$/ADB.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Game.py" beforeDir="false" afterPath="$PROJECT_DIR$/Game.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/GameState.py" beforeDir="false" afterPath="$PROJECT_DIR$/GameState.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/HeatMapPathfinding.py" beforeDir="false" afterPath="$PROJECT_DIR$/HeatMapPathfinding.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/render.py" beforeDir="false" afterPath="$PROJECT_DIR$/render.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -52,31 +47,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.\nADB.executor": "Run",
-    "Python.\nGame.executor": "Run",
-    "Python.ADB.executor": "Run",
-    "Python.Eventos_Teclado.executor": "Run",
-    "Python.Game.executor": "Run",
-    "Python.GameState.executor": "Run",
-    "Python.HeatMapPathfinding.executor": "Run",
-    "Python.JuegoA.executor": "Run",
-    "Python.Pruebas_grid.executor": "Run",
-    "Python.Unnecesary.executor": "Run",
-    "Python.config.executor": "Run",
-    "Python.enemies.executor": "Run",
-    "Python.intelligent_simulation.executor": "Run",
-    "Python.main.executor": "Run",
-    "Python.main_simple.executor": "Run",
-    "Python.render.executor": "Run",
-    "Python.state.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.\nADB.executor&quot;: &quot;Run&quot;,
+    &quot;Python.\nGame.executor&quot;: &quot;Run&quot;,
+    &quot;Python.ADB.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Eventos_Teclado.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Game.executor&quot;: &quot;Run&quot;,
+    &quot;Python.GameState.executor&quot;: &quot;Run&quot;,
+    &quot;Python.HeatMapPathfinding.executor&quot;: &quot;Run&quot;,
+    &quot;Python.JuegoA.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Pruebas_grid.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Unnecesary.executor&quot;: &quot;Run&quot;,
+    &quot;Python.config.executor&quot;: &quot;Run&quot;,
+    &quot;Python.enemies.executor&quot;: &quot;Run&quot;,
+    &quot;Python.intelligent_simulation.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main_simple.executor&quot;: &quot;Run&quot;,
+    &quot;Python.render.executor&quot;: &quot;Run&quot;,
+    &quot;Python.state.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -85,7 +80,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-2ee2454479a3-9cdd278e9d02-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-251.25410.122" />
+        <option value="bundled-python-sdk-dfff61a61320-9cdd278e9d02-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-251.25410.159" />
       </set>
     </attachedChunks>
   </component>
@@ -97,14 +92,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1738260310620</updated>
-    </task>
-    <task id="LOCAL-00007" summary="Version beta Juego 1&#10;Para entregar 04/02/25">
-      <option name="closed" value="true" />
-      <created>1738695738693</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1738695738693</updated>
     </task>
     <task id="LOCAL-00008" summary="Juego Version 2, con A* como algoritmo de busqueda para mejor ruta">
       <option name="closed" value="true" />
@@ -490,7 +477,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747156111116</updated>
     </task>
-    <option name="localTasksCounter" value="56" />
+    <task id="LOCAL-00056" summary="Version 1.6&#10;Porfin jala hijuesumadre">
+      <option name="closed" value="true" />
+      <created>1747254342012</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1747254342012</updated>
+    </task>
+    <option name="localTasksCounter" value="57" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -524,6 +519,7 @@
     <MESSAGE value="Version 2.5 Se agregan agentes" />
     <MESSAGE value="Version 2.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador" />
     <MESSAGE value="Version 1.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador" />
-    <option name="LAST_COMMIT_MESSAGE" value="Version 1.5.1 Se agregan agentes que utilizan el metodo a* para buscar al usuario, de esta forma, una vez que se llegue a colisionar finalizar el juego, se vuelve a agregar el boton para mover la posicion inicial del jugador" />
+    <MESSAGE value="Version 1.6&#10;Porfin jala hijuesumadre" />
+    <option name="LAST_COMMIT_MESSAGE" value="Version 1.6&#10;Porfin jala hijuesumadre" />
   </component>
 </project>

@@ -1,15 +1,11 @@
-
+# render.py
 import pygame
-import os  # Necesario para construir rutas de archivo si las imágenes están en subcarpetas
+import os
 from config import GameConfig
 import numpy as np
 
 
 class GameRenderer:
-    """
-    Yo me encargo de dibujar todo lo que se ve en el juego.
-    """
-
     def __init__(self, screen, game_instance):
         self.screen = screen
         self.game = game_instance
@@ -21,20 +17,16 @@ class GameRenderer:
 
     def _load_image(self, filename_str):
         try:
-            # Asumimos que las imágenes están en la misma carpeta que los scripts
-            # o que filename_str ya incluye la ruta relativa (e.g., "assets/player.png")
             filepath = filename_str
-            if not os.path.exists(
-                    filepath) and "assets" not in filename_str:  # Intenta buscar en "assets" si no se encuentra
+            if not os.path.exists(filepath) and "assets" not in filename_str:
                 filepath_assets = os.path.join("assets", filename_str)
-                if os.path.exists(filepath_assets):
-                    filepath = filepath_assets
+                if os.path.exists(filepath_assets): filepath = filepath_assets
 
             img_loaded = pygame.image.load(filepath)
             return pygame.transform.scale(img_loaded, (GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
         except (pygame.error, FileNotFoundError) as e:
             print(
-                f"ADVERTENCIA: No se pudo cargar la imagen '{filename_str}' (buscada en '{filepath}', Error: {e}). Usando color de fallback.")
+                f"ADVERTENCIA: No se pudo cargar imagen '{filename_str}' (buscada en '{filepath}', Error: {e}). Usando fallback.")
             fallback_surf = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE))
             if "player" in filename_str.lower():
                 fallback_surf.fill(GameConfig.PLAYER_COLOR)
@@ -90,7 +82,6 @@ class GameRenderer:
 
     def _draw_avatar_learned_heatmap(self):
         avatar_heatmap_data_matrix = self.game.heat_map_pathfinder.avatar_heat_map
-
         if not hasattr(avatar_heatmap_data_matrix, 'any') or not avatar_heatmap_data_matrix.any(): return
         max_heat_val_avatar = np.max(avatar_heatmap_data_matrix)
         if max_heat_val_avatar == 0: return
@@ -116,7 +107,6 @@ class GameRenderer:
     def _draw_player_frequency_heatmap(self):
         player_freq_matrix = self.game.player_movement_frequency_matrix
         if not player_freq_matrix.any(): return
-
         max_player_freq_val = np.max(player_freq_matrix)
         if max_player_freq_val == 0: return
 
@@ -125,11 +115,9 @@ class GameRenderer:
                 freq_val_player = player_freq_matrix[r_f_idx_player, c_f_idx_player]
                 if freq_val_player > 0:
                     intensity_freq_player = freq_val_player / max_player_freq_val
-
                     color_idx_freq_p = min(int(intensity_freq_player * (len(GameConfig.HEAT_COLORS) - 1)),
                                            len(GameConfig.HEAT_COLORS) - 1)
                     color_freq_p = GameConfig.HEAT_COLORS[color_idx_freq_p]
-
                     freq_cell_surf_p = pygame.Surface((GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE), pygame.SRCALPHA)
                     alpha_freq_p = int(80 + intensity_freq_player * (180 - 80));
                     alpha_freq_p = min(255, max(0, alpha_freq_p))
@@ -148,21 +136,17 @@ class GameRenderer:
 
     def _draw_game_obstacles(self):
         for obs_p_tuple in self.game.game_state.obstacles:
-            obs_render_rect = pygame.Rect(
-                obs_p_tuple[0] * GameConfig.SQUARE_SIZE, obs_p_tuple[1] * GameConfig.SQUARE_SIZE,
-                GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE
-            )
+            obs_render_rect = pygame.Rect(obs_p_tuple[0] * GameConfig.SQUARE_SIZE,
+                                          obs_p_tuple[1] * GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE,
+                                          GameConfig.SQUARE_SIZE)
             pygame.draw.rect(self.screen, GameConfig.OBSTACLE_COLOR, obs_render_rect)
 
     def _draw_all_enemies(self):
         if hasattr(self.game.game_state, 'enemies') and isinstance(self.game.game_state.enemies, dict):
-            for enemy_unique_id, data_of_enemy in self.game.game_state.enemies.items():
+            for data_of_enemy in self.game.game_state.enemies.values():
                 pos_of_enemy = data_of_enemy['position']
                 type_of_enemy = data_of_enemy.get('type', GameConfig.DEFAULT_ENEMY_TYPE)
                 self._draw_one_enemy_sprite(pos_of_enemy, type_of_enemy)
-        elif hasattr(self.game.game_state, 'enemy_positions') and self.game.game_state.enemy_positions:
-            for pos_e_from_set in self.game.game_state.enemy_positions:
-                self._draw_one_enemy_sprite(pos_e_from_set, GameConfig.DEFAULT_ENEMY_TYPE)
 
     def _draw_one_enemy_sprite(self, enemy_on_grid_pos, enemy_type_name_str):
         enemy_type_color_map = {
@@ -219,18 +203,16 @@ class GameRenderer:
                 dx = end_center_pixels[0] - start_center_pixels[0]
                 dy = end_center_pixels[1] - start_center_pixels[1]
                 dist = max(1, (dx ** 2 + dy ** 2) ** 0.5)
-                num_dashes = int(dist / (GameConfig.SQUARE_SIZE / 2.5))  # Ajustar densidad
-                if num_dashes < 1: num_dashes = 1  # Al menos un guión (o línea sólida si es corto)
+                num_dashes = int(dist / (GameConfig.SQUARE_SIZE / 2.5))
+                if num_dashes < 1: num_dashes = 1
 
                 for i_dash in range(num_dashes):
                     t0 = i_dash / num_dashes
-                    t1 = (i_dash + 0.5) / num_dashes  # Mitad del segmento para guión
-                    if t1 > 1.0: t1 = 1.0  # Asegurar que no exceda
+                    t1 = (i_dash + 0.5) / num_dashes
+                    if t1 > 1.0: t1 = 1.0
 
-                    p1 = (start_center_pixels[0] + dx * t0,
-                          start_center_pixels[1] + dy * t0)
-                    p2 = (start_center_pixels[0] + dx * t1,
-                          start_center_pixels[1] + dy * t1)
+                    p1 = (start_center_pixels[0] + dx * t0, start_center_pixels[1] + dy * t0)
+                    p2 = (start_center_pixels[0] + dx * t1, start_center_pixels[1] + dy * t1)
                     pygame.draw.line(self.screen, path_line_rgb_color, p1, p2, line_width)
             else:
                 pygame.draw.line(self.screen, GameConfig.BLACK, start_center_pixels, end_center_pixels, line_width + 2)
@@ -239,30 +221,41 @@ class GameRenderer:
     def _draw_victory_message(self):
         font_vic = pygame.font.SysFont(None, 60)
         text_vic = font_vic.render("¡FELICIDADES!", True, GameConfig.GREEN, GameConfig.DARK_GRAY)
-        rect_vic = text_vic.get_rect(
-            centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
-            centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 3
-        )
+        rect_vic = text_vic.get_rect(centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
+                                     centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 3)
+        overlay_surface = pygame.Surface(
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE),
+            pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 180))
+        self.screen.blit(overlay_surface, (0, 0))
         self.screen.blit(text_vic, rect_vic)
+        font_instr_restart = pygame.font.SysFont(None, 30)
+        text_instr_restart = font_instr_restart.render("Presiona 'R' para reiniciar", True, GameConfig.WHITE)
+        rect_instr_restart = text_instr_restart.get_rect(centerx=rect_vic.centerx, top=rect_vic.bottom + 20)
+        self.screen.blit(text_instr_restart, rect_instr_restart)
 
     def _draw_game_over_message(self):
         font_gameover = pygame.font.SysFont(None, 70)
         text_gameover = font_gameover.render("GAME OVER", True, GameConfig.RED, GameConfig.BLACK)
-        rect_gameover = text_gameover.get_rect(
-            centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
-            centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 2
-        )
+        rect_gameover = text_gameover.get_rect(centerx=(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE) // 2,
+                                               centery=(GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE) // 2)
+
+        overlay_surface = pygame.Surface(
+            (GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE),
+            pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 180))
+        self.screen.blit(overlay_surface, (0, 0))
+
         self.screen.blit(text_gameover, rect_gameover)
-        font_instr_restart = pygame.font.SysFont(None, 24)
+
+        font_instr_restart = pygame.font.SysFont(None, 30)
         text_instr_restart = font_instr_restart.render("Presiona 'R' para reiniciar", True, GameConfig.WHITE)
-        rect_instr_restart = text_instr_restart.get_rect(centerx=rect_gameover.centerx, top=rect_gameover.bottom + 10)
+        rect_instr_restart = text_instr_restart.get_rect(centerx=rect_gameover.centerx, top=rect_gameover.bottom + 20)
         self.screen.blit(text_instr_restart, rect_instr_restart)
 
     def _draw_ui_sidebar(self):
-        sidebar_full_rect = pygame.Rect(
-            GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, 0,
-            GameConfig.SIDEBAR_WIDTH, GameConfig.SCREEN_HEIGHT
-        )
+        sidebar_full_rect = pygame.Rect(GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE, 0, GameConfig.SIDEBAR_WIDTH,
+                                        GameConfig.SCREEN_HEIGHT)
         pygame.draw.rect(self.screen, GameConfig.SIDEBAR_BG, sidebar_full_rect)
 
         mouse_current_pos = pygame.mouse.get_pos()
