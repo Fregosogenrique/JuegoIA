@@ -1,459 +1,230 @@
 # JuegoIA - Juego de Navegación Inteligente
 
 ![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)
-![Pygame Version](https://img.shields.io/badge/pygame-2.6.1-blue.svg)
+![Pygame Version](https://img.shields.io/badge/pygame-2.x-blue.svg)
 ![License](https://img.shields.io/badge/license-Educational-green.svg)
-![Version](https://img.shields.io/badge/version-1.5.1-brightgreen.svg)
-![CUValles](https://img.shields.io/badge/CUValles-IA%2025A-orange.svg)
+![Version](https://img.shields.io/badge/version-1.6.0-brightgreen.svg)
+![CUValles](https://img.shields.io/badge/CUValles-IA%202024A-orange.svg)
 
 ## Resumen Ejecutivo
-Este proyecto implementa un juego de navegación con diferentes tipos de enemigos controlados por IA. Destacan:
-- Implementación de A* pathfinding con ratio de movimiento 2:1 (el avatar se mueve dos veces por cada movimiento de enemigo)
-- Cuatro tipos de enemigos con comportamientos únicos y sincronizados
-- Sistema de mapas de calor para análisis de movimientos
-- Interfaz gráfica intuitiva con múltiples modos
+Este proyecto implementa un juego de simulación de movimiento en cuadrícula donde un avatar intenta alcanzar una meta mientras evita o interactúa con elementos del entorno. La inteligencia del avatar y los enemigos se gestiona mediante algoritmos de aprendizaje por refuerzo (Q-learning) y pathfinding basado en mapas de calor. Destacan:
+- Pathfinding para el avatar utilizando Mapas de Calor y Q-learning.
+- Enemigos controlados por Q-learning (si se entrena) o con movimiento aleatorio.
+- Análisis del entorno mediante mapas de calor para posicionamiento estratégico.
+- Interfaz gráfica con Pygame para visualización, interacción y edición del escenario.
+- Mecanismo de entrenamiento en segundo plano para los agentes de IA.
 
 ## Descripción
-Proyecto desarrollado como parte del curso de Inteligencia Artificial en CUValles (Enero-Mayo 2024). Este juego forma parte de la evaluación continua de la materia, demostrando la aplicación práctica de conceptos como pathfinding, comportamientos inteligentes y análisis de datos a través de mapas de calor.
+Proyecto desarrollado como parte del curso de Inteligencia Artificial en CUValles (Enero-Mayo 2024). Este juego simula la aplicación de técnicas de IA para la toma de decisiones en un entorno dinámico, con un enfoque en Q-learning y pathfinding heurístico.
 
-Este juego de navegación, implementado en Python con Pygame, presenta un desafío donde un avatar debe alcanzar una meta mientras evita enemigos inteligentes que utilizan algoritmos de IA, incluyendo A* pathfinding con ratio de movimiento 2:1, árboles de decisión y mapas de calor para su comportamiento.
+El avatar debe navegar un grid desde una posición inicial hasta una "casa" (meta), evitando obstáculos. Opcionalmente, pueden existir enemigos que intentan interceptar al avatar. El sistema permite entrenar agentes de Q-learning tanto para el avatar como para los enemigos, y un sistema de pathfinding basado en mapas de calor para guiar al avatar.
 
-> **Nota**: Este proyecto está en desarrollo activo y se actualiza regularmente con nuevas características y mejoras.
+> **Nota**: Este proyecto es una herramienta de demostración y aprendizaje.
 
-### Objetivos del Juego
-- Guiar al avatar desde su posición inicial hasta la casa/meta
-- Evitar ser atrapado por los enemigos inteligentes
-- Encontrar rutas óptimas considerando los obstáculos
-- Utilizar la ventaja del movimiento 2:1 estratégicamente
+### Objetivos del Juego/Simulación
+- Guiar al avatar desde su posición inicial hasta la casa/meta utilizando las rutas aprendidas o calculadas.
+- (Opcional) Evitar ser atrapado por enemigos.
+- Observar y analizar cómo diferentes algoritmos de IA (Q-learning, Mapas de Calor) generan rutas y comportamientos.
+- Experimentar con la edición del entorno (obstáculos, posiciones) para ver cómo afecta a los algoritmos.
 
 ## Índice
-1. [Objetivos del Juego](#objetivos-del-juego)
+1. [Objetivos del Juego/Simulación](#objetivos-del-juegosimulación)
 2. [Características Principales](#características-principales)
-3. [Controles](#controles)
-4. [Mecánicas de Juego](#mecánicas-de-juego)
+3. [Controles y UI](#controles-y-ui)
+4. [Mecánicas de IA y Juego](#mecánicas-de-ia-y-juego)
 5. [Instalación](#instalación)
-6. [Detalles Técnicos](#detalles-técnicos)
-7. [Desarrollo y Contribuciones](#desarrollo-y-contribuciones)
-8. [Equipo de Desarrollo](#equipo-de-desarrollo)
-9. [Solución de Problemas](#solución-de-problemas)
+6. [Estructura del Proyecto](#estructura-del-proyecto)
+7. [Detalles Técnicos de IA](#detalles-técnicos-de-ia)
+8. [Desarrollo y Contribuciones](#desarrollo-y-contribuciones)
+9. [Equipo de Desarrollo](#equipo-de-desarrollo)
+10. [Solución de Problemas (FAQ)](#solución-de-problemas-faq)
 
 ### Capturas de Pantalla
-[Aquí irían capturas del juego mostrando:
-- Interfaz principal
-- Enemigos en acción
-- Mapas de calor
-- Sistema de edición]
+*(Idealmente, incluir aquí imágenes de:)*
+*- Interfaz principal con avatar, casa, obstáculos.*
+*- Un enemigo en el mapa.*
+*- Visualización del mapa de calor del avatar.*
+*- Visualización de una ruta del jugador.*
+*- La UI lateral con los botones.*
 
 ---
 
 ## Características Principales
 
 ### Navegación del Avatar
-- Control manual del avatar
-- Movimiento basado en cuadrícula
-- Reposicionamiento del avatar mediante interfaz gráfica
-- Detección de colisiones con obstáculos y enemigos
+- Movimiento automático basado en rutas calculadas (Q-learning o Mapa de Calor) cuando el juego está en marcha.
+- Control manual del avatar con teclas de flecha **solo cuando el juego no está en marcha** (para configuración).
+- Detección de colisiones con obstáculos y enemigos.
+- Visualización de la ruta actual y la "mejor ruta" planificada.
 
-### Enemigos Inteligentes
-- Implementación de A* pathfinding para persecución
-- Ratio de movimiento 2:1 (el avatar se mueve dos veces por cada movimiento de enemigo)
-- Diferentes tipos de enemigos:
-  * Perseguidores: Usan A* para seguir al jugador
-  * Bloqueadores: Intentan interceptar al jugador
-  * Patrullas: Siguen rutas predefinidas
-  * Aleatorios: Movimiento aleatorio
+### Inteligencia de Enemigos
+- (Opcional) Hasta 4 tipos de enemigos con comportamiento base de persecución o aleatorio.
+- Si se entrena el Agente Q-Learning para enemigos, estos intentarán alcanzar la posición actual del jugador.
+- Movimiento de enemigos sincronizado con el del jugador a través de `GameConfig.ENEMY_SPEED_FACTOR`.
 
 ### Algoritmos de IA Implementados
-- **Pathfinding A***: Implementación optimizada para navegación de enemigos con ratio 2:1
-- **Árboles de decisión**: Sistema de toma de decisiones para navegación
-- **Mapas de calor**: Análisis y visualización de patrones de movimiento
-- **Sistema Q-learning**: Aprendizaje de rutas óptimas
+- **Q-learning**:
+    - Agente para el avatar, aprende una política para alcanzar la casa.
+    - Agente para los enemigos, aprende una política para alcanzar al jugador.
+    - Entrenamiento en segundo plano con callbacks para visualización de progreso.
+    - Funciones de plot para analizar el aprendizaje (recompensas, valores Q, rutas simuladas).
+- **Pathfinding con Mapas de Calor (HeatMapPathfinding):**
+    - Genera un "heatmap" del avatar que indica la conveniencia de las celdas para llegar a la casa, considerando obstáculos y enemigos (durante el `train`).
+    - Utiliza un algoritmo tipo A\* sobre el heatmap generado para encontrar una ruta.
+    - Analiza el entorno (basado en el heatmap) para sugerir puntos de estrangulamiento, zonas seguras y posiciones para enemigos.
+    - Visualización del heatmap y rutas.
 
-### Interfaz Gráfica
-- Visualización en tiempo real del juego
-- Barra lateral con controles y estadísticas
-- Indicadores visuales de estado
-- Mapa de calor para análisis de movimiento
-
-### Características del Sistema de IA
-- Inteligencia artificial adaptativa que mejora con el tiempo
-- Sistema de toma de decisiones basado en el comportamiento del jugador
-- Múltiples niveles de dificultad en el comportamiento de los enemigos
-- Análisis en tiempo real de patrones de movimiento
-
----
-
-## Controles
-- **Espacio**: Iniciar/Detener juego
-- **Flechas/WASD**: Mover el avatar
-- **R**: Reiniciar juego
-- **H**: Modo entrenamiento (headless)
-- **C**: Editar posición de la casa
-- **O**: Editar obstáculos
-- **E**: Editar enemigos
-- **Botón Reposicionar Avatar**: Permite cambiar la posición inicial del avatar
-- **L**: Limpiar obstáculos
-
-### Atajos de Teclado Adicionales
-- **ESC**: Pausar juego
-- **M**: Mostrar/ocultar mapa de calor
-- **V**: Visualizar mejor ruta
-- **N**: Alternar modo noche
+### Interfaz Gráfica (Pygame)
+- Visualización en tiempo real del grid, avatar, casa, obstáculos y enemigos.
+- Barra lateral con botones para controlar la simulación, entrenamientos, modos de edición y visualizaciones.
+- Campo de texto editable en la UI para configurar las iteraciones del entrenamiento del heatmap del avatar.
+- Indicadores de progreso para los entrenamientos de los agentes.
+- Mensajes de "Victoria" o "Game Over".
 
 ---
 
-## Mecánicas de Juego
+## Controles y UI
 
-### Sistema de Enemigos
-- Inteligencia artificial adaptativa para cada tipo de enemigo
-- Sistema de pathfinding con A* para navegación inteligente
-- Detección y evitación de obstáculos
-- Comportamientos únicos para cada tipo de enemigo
+### Teclado:
+- **Espacio**: Iniciar/Detener la simulación del movimiento automático del avatar.
+- **Flechas (Arriba, Abajo, Izquierda, Derecha)**: Mover el avatar manually **solo si la simulación está detenida (`is_running = False`)**.
+- **R**: Reiniciar el juego completamente (resetea posiciones, borra heatmap de frecuencia, mantiene el aprendizaje de los agentes).
+- **H**: Iniciar entrenamiento del Agente Q-Learning del Jugador.
+- **Q**: Iniciar entrenamiento del Agente Q-Learning de los Enemigos.
+- **M**: Iniciar entrenamiento interactivo del Mapa de Calor del Avatar.
+- **N**: Configurar al jugador para que siga la ruta del Mapa de Calor (si está entrenado y disponible).
+- **V**: Solicitar visualización del Mapa de Calor del Avatar (plot).
+- **O**: Activar/Desactivar modo edición de Obstáculos (clic en grid para añadir/quitar).
+- **P**: Activar/Desactivar modo edición de Posición del Jugador (clic en grid para mover).
+- **C**: Activar/Desactivar modo edición de Posición de la Casa (clic en grid para mover).
+- **E**: Activar/Desactivar modo edición de Enemigos (clic en grid para añadir/quitar).
+- **G**: Generar un nuevo conjunto aleatorio de obstáculos.
+- **F1-F4**: Solicitar diferentes plots de análisis para el Agente Q-Learning de Enemigos (si está entrenado).
 
-#### Tipos de Enemigos:
-- **Perseguidor**:
-  * Sigue directamente al jugador
-  * Mantiene distancia mínima de 3 unidades
-  * Color: Rojo
-  * Implementa pathfinding inteligente hacia el jugador
-  
-- **Bloqueador**:
-  * Anticipa movimientos del jugador
-  * Calcula puntos de intercepción entre jugador y meta
-  * Color: Naranja
-  * Prioriza posiciones entre jugador y meta
-  
-- **Patrulla**:
-  * Sigue rutas predefinidas
-  * Radio de patrulla configurable
-  * Color: Morado
-  * Genera rutas de patrulla dinámicas adaptadas a obstáculos
-  
-- **Aleatorio**:
-  * Movimientos impredecibles
-  * Evita obstáculos y colisiones
-  * Color: Azul
-  * Selecciona movimientos aleatorios pero válidos
+### Interfaz Gráfica (Botones en la Sidebar):
+La barra lateral contiene botones que replican y extienden la funcionalidad de las teclas:
+- **Iniciar/Detener**: Equivalente a la tecla Espacio.
+- **Reiniciar Juego**: Equivalente a la tecla R.
+- **Entrenar Agente Jugador**: Equivalente a la tecla H.
+- **Entrenar Agente Enemigo**: Equivalente a la tecla Q.
+- **Detener Entrenamientos Activos**: Para los procesos de Q-learning o Heatmap.
+- **Editar Pos Jugador/Casa/Obstáculos/Enemigos**: Activan los respectivos modos de edición.
+- **Limpiar Todos Obstáculos/Enemigos**: Eliminan estos elementos del mapa.
+- **Jugador Sigue Heatmap**: Equivalente a la tecla N.
+- **Ver Heatmap Avatar**: Equivalente a la tecla V.
+- **Resetear Heatmap Avatar**: Borra los datos aprendidos del heatmap, requiere re-entrenamiento.
+- **Iter HM Av: [valor]**: Botón que funciona como campo de texto. Al hacer clic, permite ingresar un nuevo número de iteraciones para el entrenamiento del heatmap del avatar usando el teclado numérico (Enter para confirmar, Esc para cancelar).
 
-Ejemplos de comportamiento:
-- Perseguidores: Calculan y actualizan rutas constantemente hacia el jugador
-- Bloqueadores: Predicen la ruta del jugador y se posicionan estratégicamente
-- Patrullas: Mantienen rutas predefinidas y reaccionan al jugador en su rango
-- Aleatorios: Movimiento impredecible que añade variedad al juego
+---
 
-### Implementación del Ratio de Movimiento 2:1
+## Mecánicas de IA y Juego
 
-Este juego implementa un sistema de movimiento donde **por cada dos movimientos del avatar, los enemigos se mueven una vez**. Esta mecánica está implementada de la siguiente manera:
+### Movimiento del Avatar
+- Cuando la simulación está activa (`is_running = True`), el avatar sigue automáticamente la `current_path_player`. Las teclas de flecha son ignoradas para el movimiento del avatar en este estado.
+- `current_path_player` se determina por `determine_player_optimal_path()`, que considera:
+    1.  La ruta del Mapa de Calor del Avatar (si está entrenado y es la opción preferida o la única).
+    2.  La ruta derivada de la política del Agente Q-Learning del Jugador (si está entrenado y es mejor que la del heatmap).
+- Si la ruta se bloquea, se intenta un recálculo. Si falla, el avatar se detiene.
+- El movimiento manual con flechas solo es posible cuando `is_running = False` (para configurar la posición inicial).
 
-1. En la clase `BaseEnemy`:
-   - Método `can_move()` que controla el ratio de movimiento
-   - `move_counter` que se incrementa con cada intento de movimiento
-   - Movimiento permitido solo cuando `move_counter >= 2`
+### Comportamiento de Enemigos
+- **Inicialización:**
+    - El usuario puede colocar enemigos manualmente en el modo edición (tecla 'E').
+    - Si el usuario no coloca enemigos y se inicia el juego, se inicializan según `GameConfig.INITIAL_ENEMY_POSITIONS` o mediante colocación estratégica/aleatoria basada en el análisis del heatmap del avatar.
+    - El juego puede correr sin enemigos si el usuario los elimina todos ("Limpiar Enemigos") y no reinicia con la configuración por defecto o añade nuevos.
+- **Movimiento:**
+    - Si el Agente Q-Learning de Enemigos está entrenado (`enemy_q_agent_trained = True`), los enemigos usarán la política aprendida para moverse hacia la posición actual del jugador.
+    - Si no está entrenado, los enemigos se moverán aleatoriamente a celdas válidas adyacentes.
+    - La frecuencia de movimiento de los enemigos se controla por `GameConfig.ENEMY_SPEED_FACTOR` en relación con los "pasos" del jugador (incrementos de `self.step_counter`). Por ejemplo, si `ENEMY_SPEED_FACTOR = 0.5`, el enemigo se mueve cada 2 pasos del jugador.
 
-2. Comportamientos específicos de enemigos:
-   - **Perseguidor**: Sigue al jugador manteniendo una distancia mínima
-   - **Bloqueador**: Intenta interceptar al jugador calculando puntos de intersección
-   - **Patrulla**: Sigue una ruta predefinida con el ratio 2:1
-   - **Aleatorio**: Movimientos aleatorios respetando el ratio
-
-#### Sistema de Movimiento
-```python
-def can_move(self):
-    """Controla el ratio de movimiento 2:1"""
-    self.move_counter += 1
-    if self.move_counter >= 2:
-        self.move_counter = 0
-        return True
-    return False
-```
-
-### Visualización del Ratio 2:1
-```
-Avatar: 🟦 → 🟦 → (2 movimientos)
-Enemigo: 🟥 → (1 movimiento)
-```
-Este sistema asegura que:
-- El jugador tiene ventaja estratégica con dos movimientos por cada uno del enemigo
-- Sistema implementado mediante contador en BaseEnemy
-- Balance entre desafío y jugabilidad
-- Implementación específica:
-  * Método can_move() para sincronización
-  * Validación en _update_enemies para movimiento de enemigos
-  * Control preciso de la ventaja del jugador
-
-### Sistema de Colisiones
-- Detección precisa de colisiones entre entidades
-- Manejo de game over al colisionar con enemigos
-- Validación de movimientos para evitar superposiciones
-
-## Modos de Juego
-1. **Modo Normal**
-   - Control manual del avatar
-   - Enemigos activos con IA
-   - Objetivo: Llegar a la casa evitando enemigos
-
-2. **Modo Entrenamiento**
-   - Entrenamiento automático de rutas
-   - Visualización de progreso
-   - Generación de mapas de calor
-
-3. **Modo Edición**
-   - Modificación de obstáculos
-   - Colocación de enemigos
-   - Ajuste de posiciones iniciales
+### Sistema de Colisiones y Fin de Juego
+- Si el avatar alcanza la posición de la casa, se declara "Victoria" y la simulación se detiene.
+- Si la posición del avatar coincide con la de un enemigo mientras la simulación está activa, se declara "Game Over" y la simulación se detiene.
+- En ambos casos, se muestra un mensaje en pantalla y el juego espera la interacción del usuario (principalmente reiniciar con 'R'). La pantalla del juego se "congela" mostrando el estado final, con el mensaje de victoria/derrota superpuesto.
 
 ---
 
 ## Instalación
 
 ### Requisitos
-- Python 3.x
-- Pygame 2.5.0 o superior
-- NumPy 1.24.0 o superior
-- Sistema Operativo: Windows 10/11, macOS 10.15+, o Linux
-
-**Nota**: Se recomienda usar la última versión estable de Python y Pygame para mejor compatibilidad.
-
-#### Requerimientos Mínimos del Sistema
-- CPU: 2.0 GHz Dual Core
-- RAM: 4GB
-- GPU: Integrada compatible con OpenGL 2.0
-- Espacio en disco: 100MB
+- Python 3.x (probado con 3.9+)
+- Pygame (probado con 2.x)
+- NumPy
+- Matplotlib (para los plots de análisis)
 
 ### Pasos de Instalación
-1. Clonar el repositorio:
-   ```bash
-   git clone [URL_del_repositorio]
-   ```
+1.  Asegúrate de tener Python 3 instalado.
+2.  Clona o descarga el repositorio del proyecto.
+3.  Abre una terminal o línea de comandos en la carpeta del proyecto.
+4.  Instala las dependencias (se recomienda usar un entorno virtual):
+    ```bash
+    pip install pygame numpy matplotlib
+    ```
+5.  Asegúrate de tener los archivos de imagen (`player.png`, `house.png`, `enemy.png`) en la misma carpeta que `main.py`, o en una subcarpeta `assets/` (y ajusta `GameConfig.PLAYER_IMAGE`, etc., si es necesario).
+6.  Ejecuta el juego:
+    ```bash
+    python main.py
+    ```
 
-2. Instalar dependencias:
-   ```bash
-   pip install pygame numpy
-   ```
-
-3. Ejecutar el juego:
-   ```bash
-   python main.py
-   ```
-
-### Quick Start
-1. **Ejecutar el juego:**
-   ```bash
-   python main.py
-   ```
-2. **Configuración inicial:**
-   - Usar el botón "Reposicionar Avatar" para colocar al jugador
-   - Presionar Espacio para iniciar el juego
-   
-3. **Controles básicos:**
-   - Usar las teclas de flecha o WASD para mover al avatar
-   
-4. **Tipos de enemigos:**
-   - 🔴 Perseguidores: Te seguirán directamente
-   - 🟠 Bloqueadores: Intentarán interceptarte
-   - 🟣 Patrullas: Seguirán rutas fijas
-   - 🔵 Aleatorios: Movimiento impredecible
-   
-5. **Objetivo:**
-   - Llegar a la casa evitando los enemigos
-   
-6. **Consejos de juego:**
-   - Utiliza la ventaja del movimiento 2:1 estratégicamente
-   - Observa los patrones de movimiento de cada tipo de enemigo
-   - Aprovecha el reposicionamiento del avatar para situaciones difíciles
-   - Consulta el mapa de calor para identificar zonas peligrosas
-
-### Nota de Rendimiento
-El juego está optimizado para mantener 60 FPS en la mayoría de sistemas modernos. La complejidad computacional de los algoritmos de IA está balanceada para proporcionar comportamientos inteligentes sin comprometer el rendimiento.
-
-### Consejos de Rendimiento
-- Mantener un número razonable de enemigos (máximo 8 recomendado)
-- Evitar crear demasiados obstáculos
-- Cerrar otras aplicaciones al ejecutar el juego
-- Actualizar los drivers de su tarjeta gráfica
+### Configuración Inicial Recomendada
+1.  Al iniciar, puedes usar las teclas **P**, **C**, **O**, **E** (o los botones de la UI) para entrar en los respectivos modos de edición y configurar el escenario (posición del jugador, casa, obstáculos, enemigos). El movimiento manual del avatar con flechas solo funciona si el juego está detenido.
+2.  Puedes ajustar el número de iteraciones para el entrenamiento del heatmap del avatar usando el botón/campo de texto "Iter HM Av: [valor]".
+3.  Entrena el heatmap del avatar (**M**) y/o los agentes Q-learning (**H** para jugador, **Q** para enemigos). Los entrenamientos se ejecutan en segundo plano.
+4.  Una vez configurado y/o entrenado, presiona **Espacio** o el botón "Iniciar/Detener" para comenzar la simulación. El avatar seguirá la ruta calculada.
 
 ---
 
 ## Estructura del Proyecto
-Los archivos del proyecto están completamente documentados con docstrings y comentarios explicativos. Consulte cada archivo para detalles específicos de implementación.
-
-```
+Use code with caution.
+Markdown
 JuegoIA/
-├── main.py                # Punto de entrada principal
-├── Game.py                # Lógica principal del juego y IA
-├── GameState.py           # Gestión del estado del juego
-├── render.py              # Sistema de renderizado y UI
-├── config.py              # Configuraciones y constantes
-├── DecisionTree.py        # Algoritmo de árboles de decisión
-├── HeatMapPathfinding.py  # Sistema de mapas de calor
-├── ADB.py                 # Algoritmos de aprendizaje
-├── enemies.py             # Implementación de tipos de enemigos
-└── README.md              # Documentación del proyecto
-```
-
-### Implementación Técnica del Ratio 2:1 en BaseEnemy
-En el archivo `enemies.py`, cada tipo de enemigo hereda de la clase `BaseEnemy`, que implementa el sistema de ratio 2:1 a través del método `can_move()`:
-
-```python
-def can_move(self):
-    """Controla el ratio de movimiento 2:1"""
-    self.move_counter += 1
-    if self.move_counter >= 2:
-        self.move_counter = 0
-        return True
-    return False
-```
-
-Cada enemigo invoca este método antes de realizar cualquier movimiento, asegurando:
-1. Consistencia en el ratio 2:1
-2. Sincronización entre todos los tipos de enemigos
-3. Ventaja estratégica para el jugador
-
+├── main.py # Punto de entrada principal
+├── Game.py # Clase principal del juego, maneja lógica y bucle principal
+├── GameState.py # Clase para gestionar el estado del juego (posiciones, obstáculos, etc.)
+├── render.py # Clase para dibujar todos los elementos y la UI
+├── config.py # Constantes y configuraciones del juego y IA
+├── ADB.py # Implementación del Agente Q-learning
+├── HeatMapPathfinding.py # Implementación del pathfinding basado en Mapas de Calor
+└── README.md # Esta documentación
 ---
 
-## Detalles Técnicos
+## Detalles Técnicos de IA
 
-### Implementación de A*
-- Uso de conjuntos abiertos y cerrados para exploración eficiente
-- Heurística Manhattan para estimación de distancias
-- Optimización de recálculo de rutas en tiempo real
-- Manejo de colisiones y obstáculos durante la búsqueda de rutas
-- Sistema de prioridad para selección de nodos
-- Optimizaciones específicas:
-  * Uso de heurística Manhattan personalizada
-  * Cache de caminos calculados
-  * Actualización dinámica de rutas
-  * Evitación de recálculos innecesarios
+### Agente Q-learning (`ADB.py`)
+- Implementa una tabla Q (NumPy array) para el espacio de estados (posiciones del grid) y acciones (arriba, abajo, izquierda, derecha).
+- Utiliza una política epsilon-greedy para el balance entre exploración y explotación durante el entrenamiento.
+- Parámetros configurables: tasa de aprendizaje (`learning_rate`), factor de descuento (`discount_factor`), decaimiento de épsilon (`epsilon_decay`), épsilon mínimo (`epsilon_min`).
+- La función de recompensa incentiva acercarse al objetivo y penaliza los pasos, el alejamiento o quedarse quieto.
+- Permite entrenamiento en un hilo separado para no bloquear la UI, con un callback para actualizar el progreso.
+- Ofrece varios métodos de plot para visualizar:
+    - `plot_analysis`: Progreso de recompensas y épsilon.
+    - `plot_q_values_heatmap`: Mapas de calor de los valores Q para cada acción.
+    - `plot_best_path`: Simulación de un camino usando la política aprendida.
+    - `plot_comprehensive_analysis`: Un conjunto combinado de los plots anteriores.
 
-### Sistema de Enemigos
-- Gestión de estados independiente para cada tipo de enemigo
-- Sincronización de movimientos mediante BaseEnemy.can_move()
-- Sistema de predicción para enemigos bloqueadores
-
-### Comportamientos de Enemigos
-1. **Perseguidor**:
-   - Pathfinding inteligente hacia el jugador
-   - Mantiene distancia mínima de 3 unidades
-   - Implementación de movimiento diagonal cuando es posible
-
-2. **Bloqueador**:
-   - Calcula puntos de intercepción
-   - Prioriza posiciones entre jugador y meta
-   - Predice movimiento futuro del jugador
-
-3. **Patrulla**:
-   - Genera rutas de patrulla dinámicas
-   - Se adapta a obstáculos cercanos
-   - Mantiene patrullaje en área definida
-
-4. **Aleatorio**:
-   - Movimientos aleatorios válidos
-   - Evita colisiones y obstáculos
-   - Mantiene coherencia en movimiento
-
-### Comportamientos Específicos de Enemigos con Ratio 2:1
-
-Cada enemigo implementa el sistema de movimiento 2:1 a través de la clase BaseEnemy, pero lo utiliza de manera única:
-
-1. **Perseguidor (Rojo)**
-   - Espera dos movimientos del avatar antes de actualizar su posición
-   - Mantiene distancia mínima de 3 unidades para evitar persecución agresiva
-   - Utiliza A* pathfinding con predicción de movimiento
-   ```python
-   def get_next_move(self, player_pos):
-       if not self.can_move():  # Control de ratio 2:1
-           return self.position
-       # ... lógica de persecución
-   ```
-
-2. **Bloqueador (Naranja)**
-   - Calcula puntos de intercepción considerando el ratio 2:1
-   - Predice la posición futura del jugador basado en su velocidad doble
-   - Prioriza posiciones estratégicas entre jugador y meta
-   ```python
-   def get_next_move(self, player_pos):
-       if not self.can_move():  # Control de ratio 2:1
-           return self.position
-       # ... lógica de bloqueo
-   ```
-
-3. **Patrulla (Morado)**
-   - Sigue su ruta de patrulla respetando el ratio 2:1
-   - Mantiene sincronización con otros enemigos
-   - Radio de patrulla adaptable a obstáculos
-   ```python
-   def get_next_move(self, player_pos):
-       if not self.can_move():  # Control de ratio 2:1
-           return self.position
-       # ... lógica de patrulla
-   ```
-
-4. **Aleatorio (Azul)**
-   - Movimientos aleatorios cada dos pasos del jugador
-   - Evita colisiones y mantiene coherencia de movimiento
-   - Incluye validación de movimientos
-   ```python
-   def get_next_move(self, player_pos):
-       if not self.can_move():  # Control de ratio 2:1
-           return self.position
-       # ... lógica de movimiento aleatorio
-   ```
-
-### Implementación del Ratio en BaseEnemy
-
-El sistema 2:1 está centralizado en la clase base para garantizar consistencia:
-
-```python
-class BaseEnemy:
-    def __init__(self, position, grid_width, grid_height):
-        # ... otras inicializaciones
-        self.move_counter = 0  # Contador para ratio 2:1
-
-    def can_move(self):
-        """Controla el ratio de movimiento 2:1"""
-        self.move_counter += 1
-        if self.move_counter >= 2:
-            self.move_counter = 0
-            return True
-        return False
-```
-
-Esta implementación asegura que:
-- Todos los enemigos mantienen el mismo ratio de movimiento
-- La sincronización es consistente en todo el juego
-- El jugador mantiene ventaja estratégica de dos movimientos
-- El sistema es fácilmente ajustable para balanceo del juego
-
-### Arquitectura del Juego
-- Diseño modular para fácil extensibilidad
-- Separación clara de responsabilidades entre componentes
-- Sistema de eventos para comunicación entre módulos
-
-## Funcionalidades Avanzadas
-
-### Sistema de Pathfinding A*
-El juego implementa un sistema avanzado de pathfinding A* que:
-- Calcula rutas óptimas para los enemigos
-- Evita obstáculos y otros enemigos
-- Se actualiza en tiempo real según el movimiento del jugador
-
-### Control de Movimiento 2:1
-- El avatar se mueve dos veces por cada movimiento de enemigo
-- Sistema sincronizado para mantener el balance del juego
-- Previene que los enemigos sean demasiado agresivos
-
-### Mapas de Calor
-- Visualización de zonas más transitadas
-- Análisis de patrones de movimiento
-- Ayuda en la estrategia de juego
+### Pathfinding con Mapas de Calor (`HeatMapPathfinding.py`)
+- **Entrenamiento del Heatmap (`train`):**
+    - Simula múltiples "caminatas" desde la posición inicial del avatar hacia la casa.
+    - Las celdas en los caminos exitosos son reforzadas en `avatar_heat_map`.
+    - El refuerzo es mayor para celdas más cercanas a la meta en un camino corto.
+    - Considera obstáculos y la posición actual de los enemigos (si se proporcionan) para penalizar celdas peligrosas durante la simulación de caminatas.
+- **Búsqueda de Ruta (`find_path_with_heat_map`):**
+    - Utiliza un algoritmo similar a A\* para encontrar la ruta óptima sobre el `avatar_heat_map`.
+    - El "costo" de moverse a una celda vecina está influenciado por el valor del `avatar_heat_map`.
+    - Maneja explícitamente el caso donde la meta es adyacente al inicio.
+    - Puede realizar un entrenamiento ad-hoc si el heatmap está vacío.
+- **Análisis del Entorno (`analyze_environment`):**
+    - Utiliza el `avatar_heat_map` entrenado para identificar puntos de estrangulamiento, zonas seguras y posiciones potenciales para enemigos.
+- **Visualización (`visualize_heat_map`):**
+    - Genera un plot del `avatar_heat_map` usando Matplotlib.
 
 ---
 
 ## Desarrollo y Contribuciones
-Proyecto desarrollado como parte del curso de IA en CUValles.
+Proyecto desarrollado como parte del curso de Inteligencia Artificial 2024A en CUValles.
 
 ## Equipo de Desarrollo
-Desarrollado como proyecto del curso de Inteligencia Artificial 25A en CUValles:
+Desarrollado como proyecto del curso de Inteligencia Artificial 2024A en CUValles:
 - Fregoso Gutierrez Enrique de Jesus
 - Ortiz Jimenez Vladimir
 - Sanchez Sanchez Andrea Yunuhen Vianney
@@ -463,64 +234,50 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 25A en CUValles:
 
 ---
 
-## [Registro de Versiones](#registro-de-versiones)
-- v1.0 (Febrero 2024): Implementación inicial del juego con movimiento básico
-- v1.1 (Marzo 2024): Sistema A* para navegación inteligente de enemigos
-- v1.2 (Marzo 2024): Implementación de diferentes tipos de enemigos y sus comportamientos
-- v1.3 (Abril 2024): Sistema de UI mejorado y reposicionamiento del avatar
-- v1.4 (Mayo 2024): Implementación de mapas de calor y análisis de movimiento
-- v1.5 (Mayo 2024): 
-  * Optimizaciones finales y documentación completa
-  * Mejora del sistema de movimiento con ratio 2:1
-  * Refinamiento de comportamientos de enemigos
-  * Implementación de BaseEnemy con control centralizado de movimiento
-- v1.5.1 (Mayo 2024):
-  * Optimización del ratio de movimiento 2:1
-  * Mejora en la sincronización de enemigos
-  * Documentación actualizada con ejemplos visuales
-  * Correcciones de errores menores
+## Registro de Versiones (Ejemplo)
+- v1.0 - v1.4: Desarrollo inicial.
+- v1.5: Re-enfoque en Q-learning y Heatmaps.
+- v1.6.0 (Mayo 2024):
+  * Implementación robusta de Q-learning y Heatmaps.
+  * UI mejorada, campo de texto editable, feedback de entrenamiento.
+  * Control de movimiento de enemigos por `ENEMY_SPEED_FACTOR`.
+  * Múltiples correcciones de bugs y refinamientos de lógica de juego y IA.
+  * Clarificación del movimiento manual vs. automático.
 
 ---
 
 ## Agradecimientos
-- Dr. Hernando Rosales por la guía y supervisión del proyecto
-- Centro Universitario de los Valles (CUValles) por el apoyo y recursos
-- Comunidad de desarrollo de Pygame por las herramientas y documentación
+- Dr. Hernando Rosales por la guía y supervisión del proyecto.
+- Centro Universitario de los Valles (CUValles) por el apoyo y recursos.
+- Comunidad de desarrollo de Pygame y Matplotlib.
 
 ---
 
-## Solución de Problemas
-### Problemas Comunes
-1. **El juego se ejecuta lento**
-   - Verificar que cumple los requisitos mínimos del sistema
-   - Cerrar aplicaciones en segundo plano
-   - Reducir la cantidad de enemigos en pantalla
+## Solución de Problemas (FAQ)
 
-2. **Errores de Instalación**
-   - Asegurarse de tener Python 3.x instalado
-   - Actualizar pip: `python -m pip install --upgrade pip`
-   - Instalar dependencias individualmente si es necesario
+1.  **El avatar no se mueve después de iniciar el juego (Espacio):**
+    *   Asegúrate de que se haya calculado una ruta. `determine_player_optimal_path()` se llama al iniciar.
+    *   Intenta entrenar el Mapa de Calor del Avatar (M) o el Agente Q-Jugador (H) primero.
+    *   Verifica la consola; si dice "No hay ruta planificada" o `current_path_player` es solo la posición actual, el avatar no se moverá automáticamente.
+    *   Si creaste un escenario donde la casa es inaccesible (ej. completamente rodeada por obstáculos, o un "muro" hecho con la propia casa donde ninguna celda adyacente a la casa es válida), ningún pathfinder podrá encontrar una ruta.
 
-3. **Problemas de Visualización**
-   - Verificar resolución mínima: 1024x768
-   - Actualizar drivers de video
-   - Probar en modo ventana
+2.  **Los enemigos se comportan de forma extraña (atascados, ciclos):**
+    *   Esto suele indicar que el Agente Q-Learning de Enemigos necesita más entrenamiento o ajustes en sus parámetros (tasa de aprendizaje, decaimiento de épsilon, función de recompensa).
+    *   Aumenta `enemy_agent_max_training_iterations` en `Game.py`.
+    *   Prueba con valores diferentes para `epsilon_decay` y `epsilon_min` en `ADB.py` (los valores recientes deberían ser mejores).
+    *   Asegúrate de que la función de recompensa en `ADB.py` incentive correctamente el comportamiento deseado (perseguir al jugador).
+    *   Si no has entrenado a los enemigos, se moverán aleatoriamente.
 
-4. **Problemas con el Ratio de Movimiento 2:1**
-   - **Síntoma**: Los enemigos se mueven demasiado rápido o lento
-     * Verificar que `move_counter` se reinicia correctamente
-     * Comprobar que todos los enemigos heredan de BaseEnemy
-     * Asegurar que `can_move()` se llama antes de cada movimiento
+3.  **El juego se ejecuta lento, especialmente durante el entrenamiento:**
+    *   Los algoritmos de IA pueden ser intensivos. El entrenamiento en un hilo separado ayuda a que la UI no se congele, pero el proceso sigue consumiendo CPU.
+    *   Considera reducir el tamaño del grid en `config.py` o el número de iteraciones de entrenamiento. Para un grid de 40x30, `max_training_iterations` para Q-learning podría necesitar ser de varios miles (e.g., 10000-50000) para una buena convergencia, lo cual tomará tiempo.
 
-   - **Síntoma**: Desincronización de enemigos
-     * Revisar que todos los enemigos usan el mismo contador
-     * Verificar que no hay movimientos fuera del control del ratio
-     * Comprobar la inicialización correcta de BaseEnemy
+4.  **Errores de `TypeError` o `AttributeError`:**
+    *   Asegúrate de tener todos los archivos del proyecto actualizados y en la misma carpeta.
+    *   Verifica las versiones de Python y las bibliotecas.
 
-   - **Síntoma**: El avatar no tiene ventaja de movimiento
-     * Asegurar que el control de movimiento del avatar está correcto
-     * Verificar la implementación de `_update_enemies`
-     * Comprobar la lógica de detección de colisiones
+5.  **Las imágenes no se cargan:**
+    *   Asegúrate de que los archivos de imagen (`player.png`, `house.png`, `enemy.png`) estén en la misma carpeta que `main.py`, o en una subcarpeta `assets/` y que la ruta en `GameRenderer._load_image()` (vía `GameConfig`) sea correcta.
 
 ---
 
@@ -529,7 +286,6 @@ Para dudas o sugerencias sobre el proyecto:
 - Email: fregosogenrique@gmail.com
 - Email: vladimir.ortiz8015@alumnos.udg.mx
 - Email: andrea.sanchez0541@alumnos.udg.mx
-
 
 ---
 
