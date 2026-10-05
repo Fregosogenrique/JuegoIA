@@ -204,5 +204,53 @@ class GameMechanicsTest(unittest.TestCase):
         self.assertFalse(g.is_running)
 
 
+class VisualizationTest(unittest.TestCase):
+    """Las vistas se dibujan sin errores y el clic en la maqueta 3D cae en la celda correcta."""
+
+    @classmethod
+    def setUpClass(cls):
+        from Game import Game
+        random.seed(5)
+        with quiet():
+            cls.game = Game()
+            cls.game._handle_menu_action('play2d')
+            cls.game.toggle_game_running_state()
+            for _ in range(5):
+                cls.game.play_turn()
+
+    def test_todas_las_vistas_se_dibujan(self):
+        g = self.game
+        for mode in GameConfig.VIEW_MODES:
+            with quiet():
+                g.set_view_mode(mode)
+            for _ in range(3):
+                g.renderer.render(1 / 30)
+        self.assertEqual(g.screen.get_size(), (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
+
+    def test_clic_en_mapa_3d_selecciona_la_celda(self):
+        g = self.game
+        with quiet():
+            g.set_view_mode('3d')
+        view = g.renderer.map3d
+        view.intro = 1.0
+        view._setup_camera()
+        for cell in ((3, 4), (20, 15), (35, 25)):
+            sx, sy, _ = view.project1(cell[0] + 0.5, cell[1] + 0.5, 0.0)
+            pos = (int(sx) + view.rect.left, int(sy) + view.rect.top)
+            self.assertEqual(g.renderer.screen_to_cell(pos), cell)
+
+    def test_primera_persona_gira_y_avanza(self):
+        import pygame
+        g = self.game
+        g.is_running = False
+        g.game_state.obstacles = set()
+        g.game_state.player_pos = (10, 10)
+        g.player_facing = (1, 0)
+        g._first_person_control(pygame.K_LEFT)
+        self.assertEqual(g.player_facing, (0, -1))  # Girar a la izquierda mirando al este -> norte
+        g._first_person_control(pygame.K_UP)
+        self.assertEqual(g.game_state.player_pos, (10, 9))
+
+
 if __name__ == "__main__":
     unittest.main()

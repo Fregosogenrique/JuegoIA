@@ -4,12 +4,19 @@ import pygame
 
 class GameConfig:
     # Dimensiones del Grid y Pantalla
-    GRID_WIDTH = 40  # MODIFICADO
-    GRID_HEIGHT = 30  # MODIFICADO
-    SQUARE_SIZE = 20  # MODIFICADO (opcional, para que quepa mejor en pantalla)
-    SIDEBAR_WIDTH = 250
+    GRID_WIDTH = 40
+    GRID_HEIGHT = 30
+    SQUARE_SIZE = 22
+    HUD_HEIGHT = 52  # Barra superior tipo marcador
+    SIDEBAR_WIDTH = 300
+    GRID_ORIGIN = (0, HUD_HEIGHT)  # Esquina superior izquierda del tablero en pantalla
     SCREEN_WIDTH = GRID_WIDTH * SQUARE_SIZE + SIDEBAR_WIDTH
-    SCREEN_HEIGHT = GRID_HEIGHT * SQUARE_SIZE
+    SCREEN_HEIGHT = HUD_HEIGHT + GRID_HEIGHT * SQUARE_SIZE
+    WINDOW_TITLE = "JuegoIA · Bomber Mind"
+
+    # Vistas: "2d" (tablero), "3d" (maqueta 3D del mapa), "fps" (primera persona)
+    VIEW_MODES = ["2d", "3d", "fps"]
+    VIEW_NAMES = {"2d": "2D", "3d": "MAPA 3D", "fps": "1ª PERSONA"}
 
     # Colores
     BLACK = (0, 0, 0)
@@ -53,7 +60,7 @@ class GameConfig:
     HOUSE_IMAGE = "27187.jpg.webp"
     ENEMY_IMAGE = "enemy.png"
 
-    GAME_SPEED = 30  # FPS del bucle de dibujo (independiente de la velocidad de los turnos)
+    GAME_SPEED = 60  # FPS del bucle de dibujo (independiente de la velocidad de los turnos)
     MOVE_DELAY = 150  # ms por turno
     HEADLESS_DELAY = 30  # ms por turno en modo sin cabeza
     OBSTACLE_PERCENTAGE = 18  # Ligeramente reducido para grid más grande

@@ -220,11 +220,34 @@ Cada paso del avatar suma 1 en `player_movement_frequency_matrix`, que se dibuja
 
 ## 12. Lo que se ve en pantalla
 
-- **Estela de feromona** (amarillo → rojo oscuro): el mapa de calor de las hormigas. Las celdas por debajo del 2 % del máximo no se dibujan, para que se distingan la ruta principal y las alternativas.
-- **Línea discontinua amarilla:** la mejor ruta planificada (con el juego detenido).
-- **Línea naranja:** el tramo de ruta que **falta** recorrer (con el juego corriendo).
-- **Aro rojo sobre un enemigo:** está persiguiendo activamente al avatar.
-- **Panel de estado** (abajo en la barra lateral): turno y pasos, origen de la ruta (Heatmap, Agente Q o Huida) y celdas restantes, número de enemigos y su velocidad, y estado de cada agente Q (sin entrenar, entrenado o desactualizado).
+### Elementos comunes
+- **Estela de feromona** (puntos cálidos, tecla **T**): el mapa de calor de las hormigas; las celdas por debajo del 3 % del máximo no se dibujan.
+- **Puntos naranjas:** el tramo de ruta que **falta** recorrer (con el juego corriendo); **puntos amarillos:** la mejor ruta planificada (con el juego detenido).
+- **Aro rojo bajo un enemigo:** está persiguiendo activamente al avatar; las patrullas muestran un **"!"** al detectarte.
+- **Efectos:** polvo al caminar, explosión en cruz al ser atrapado (con temblor de pantalla) y confeti al llegar a casa.
+- **Marcador superior:** pasos, turno, tiempo, estado de la partida, vista actual y los enemigos en juego.
+- **Panel lateral:** botones por sección, origen de la ruta (Heatmap, Agente Q o Huida), estado de cada agente Q (sin entrenar / lista / desactualizada) con barra de progreso al entrenar y leyenda de enemigos.
+
+Las posiciones que se dibujan se **deslizan** hacia las posiciones lógicas a la velocidad de un turno (`Animator` en `render.py`), así el movimiento se ve continuo aunque la lógica avance casilla a casilla.
+
+### Las tres vistas (tecla Tab)
+Las vistas sólo cambian **cómo se dibuja** el mismo estado: la lógica del juego es idéntica en las tres.
+
+1. **2D:** el tablero visto desde arriba, como en el Bomberman clásico.
+2. **Mapa 3D** (`view3d.py`): una maqueta en perspectiva.
+   - **Cámara orbital:** apunta al centro del tablero; *yaw* (giro), *pitch* (inclinación) y distancia se controlan arrastrando el ratón y con la rueda. Cada punto 3D se proyecta con `pantalla = centro + focal · (x_cámara, y_cámara) / profundidad`.
+   - **Suelo:** para cada píxel se lanza un rayo desde la cámara y se calcula dónde corta el plano del tablero (z = 0); ese punto toma el color del tablero 2D (césped, rastro, ruta). Se hace con numpy, a media resolución mientras la cámara se mueve y completa en cuanto se detiene.
+   - **Bloques:** cubos con caras sombreadas según su orientación (luz desde el noroeste), detalle de ladrillo o piedra y sólo las caras que miran a la cámara. Las 8 esquinas de todos los bloques se proyectan de una sola vez.
+   - **Orden de dibujo (algoritmo del pintor):** bloques, casa, personajes, llamas y partículas se ordenan por distancia a la cámara y se dibujan del más lejano al más cercano.
+   - **Casa 3D:** paredes, tejado a dos aguas con tejas, chimenea, puerta y ventanas, más un haz de luz y una gema dorada que gira para que la meta se vea desde lejos.
+   - **Entrada animada:** al activar la vista, la cámara baja desde la posición cenital (idéntica a la 2D) y los bloques crecen hacia el jugador, como si el mapa saliera de la pantalla.
+   - **Edición:** un clic se convierte en un rayo contra el tablero para saber qué celda se pulsó.
+3. **1ª persona** (`raycaster.py`): raycasting como en Wolfenstein 3D.
+   - Por cada columna se lanza un rayo con **DDA** sobre la cuadrícula hasta el primer muro; la distancia perpendicular da la altura de la pared, texturizada y oscurecida con la distancia. El borde del mapa es un muro de piedra.
+   - El suelo se calcula por píxel (*floor casting*) mostrando las baldosas, el rastro y la ruta.
+   - Enemigos, casa y llamas son *sprites* recortados por un **z-buffer** para que los muros los tapen.
+   - La cámara gira suavemente hacia donde mira el avatar. HUD: brújula con la dirección de la casa, pasos restantes, minimapa, aviso "¡ENEMIGO CERCA!" y una bomba en la mano que se balancea al caminar.
+   - Con el juego detenido, ←/→ giran 90° y ↑/↓ avanzan o retroceden.
 
 ## 13. Resultados medidos: antes y después
 

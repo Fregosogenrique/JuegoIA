@@ -7,6 +7,7 @@ from GameState import GameState
 # from DecisionTree import DecisionTree # Comentado - no se usa activamente
 from config import GameConfig
 from render import GameRenderer
+from ui import MenuScreen
 from ADB import QLearningAgent
 from HeatMapPathfinding import HeatMapPathfinding
 from grid_utils import manhattan, neighbors_4
@@ -28,8 +29,16 @@ class Game:
 
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
-        pygame.display.set_caption("Mi Simulación de Movimiento Inteligente con Heatmap")
+        self.screen = self._create_window()
+        pygame.display.set_caption(GameConfig.WINDOW_TITLE)
+        pygame.key.set_repeat(220, 90)
+
+        # Escena actual: "menu" (menú principal) o "playing" (partida)
+        self.scene = "menu"
+        self.game_started_once = False
+        self.view_mode = "2d"  # "2d", "3d" (maqueta) o "fps" (primera persona)
+        self.show_trail = True  # Mostrar el rastro de feromona del mapa de calor
+        self.player_facing = (0, 1)  # Hacia dónde mira el avatar (para los sprites y la cámara 3D)
 
         self.step_counter = 0  # Pasos que ha dado el avatar
         self.turn_counter = 0  # Turnos de simulación transcurridos
@@ -78,6 +87,7 @@ class Game:
         self.edit_mode = None
         self.clock = pygame.time.Clock()
         self.renderer = GameRenderer(self.screen, self)
+        self.menu = MenuScreen(self.renderer.sprites)
         self.learning_status_display = ""
         self.plot_request_queue = Queue()
 
@@ -85,6 +95,53 @@ class Game:
         self.input_buffer = ""
 
         self.determine_player_optimal_path()  # Calcular ruta inicial basada en el estado inicial
+
+    @staticmethod
+    def _create_window():
+        """Ventana escalable (se puede redimensionar y poner a pantalla completa con F11)."""
+        size = (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT)
+        try:
+            return pygame.display.set_mode(size, pygame.SCALED | pygame.RESIZABLE)
+        except pygame.error:
+            return pygame.display.set_mode(size)
+
+    # ================================================================ VISTAS
+    def set_view_mode(self, mode):
+        if mode not in GameConfig.VIEW_MODES:
+            return
+        self.view_mode = mode
+        self.renderer.on_view_changed(mode)
+        print(f"Vista: {GameConfig.VIEW_NAMES[mode]}")
+
+    def cycle_view_mode(self):
+        modes = GameConfig.VIEW_MODES
+        self.set_view_mode(modes[(modes.index(self.view_mode) + 1) % len(modes)])
+
+    def toggle_trail(self):
+        self.show_trail = not self.show_trail
+        print(f"Rastro de feromona {'visible' if self.show_trail else 'oculto'}.")
+
+    def open_menu(self):
+        if self.is_running:
+            self.toggle_game_running_state()
+        self.edit_mode = None
+        self.menu.page = 'main'
+        self.menu.selected = 0  # "CONTINUAR" queda preseleccionado
+        self.scene = "menu"
+
+    def _handle_menu_action(self, action):
+        if action == 'quit':
+            self.is_pygame_loop_running = False
+            return
+        if action == 'continue':
+            self.scene = "playing"
+            return
+        if action in ('play2d', 'play3d', 'playfps'):
+            if self.game_started_once:
+                self.reset_game_state_full()
+            self.game_started_once = True
+            self.scene = "playing"
+            self.set_view_mode({'play2d': '2d', 'play3d': '3d', 'playfps': 'fps'}[action])
 
     def _train_avatar_heatmap_on_init(self):
         print("\n=== ENTRENANDO/RE-ENTRENANDO HEATMAP DEL AVATAR ===")
@@ -164,6 +221,9 @@ class Game:
         return True
 
     def _move_player_to(self, new_pos):
+        old = self.game_state.player_pos
+        if manhattan(old, new_pos) == 1:
+            self.player_facing = (new_pos[0] - old[0], new_pos[1] - old[1])
         self.game_state.player_pos = new_pos
         self.player_movement_frequency_matrix[new_pos[1]][new_pos[0]] += 1
         self.step_counter += 1
@@ -402,8 +462,8 @@ class Game:
         stop_flag_hm_train = [False]
 
         def hm_cb_inter(it_n, tot_n, _p, _bp, prog_p, is_final=False):
-            if it_n % (tot_n // 20 if tot_n >= 20 else 1) == 0:
-                pass
+            if it_n % max(1, tot_n // 40) == 0 and not is_final:
+                self.renderer.render_training_overlay(it_n / max(1, tot_n))
             pygame.event.pump()
             for ev_stop in pygame.event.get():
                 if ev_stop.type == pygame.QUIT: stop_flag_hm_train[0] = True; self.is_pygame_loop_running = False
@@ -537,6 +597,7 @@ class Game:
 
         if self.input_field_active: return
 
+        self.player_facing = (dx, dy)
         current_player_pos = self.game_state.player_pos
         new_player_pos = (current_player_pos[0] + dx, current_player_pos[1] + dy)
 
@@ -567,6 +628,22 @@ class Game:
                 self.input_buffer = self.input_buffer[:-1]
             elif event.unicode.isdigit():
                 if len(self.input_buffer) < 5: self.input_buffer += event.unicode
+            return
+
+        if key_pressed_val == pygame.K_ESCAPE:
+            if self.edit_mode:
+                self.edit_mode = None
+            else:
+                self.open_menu()
+            return
+        if key_pressed_val == pygame.K_TAB:
+            self.cycle_view_mode()
+            return
+        if key_pressed_val == pygame.K_t:
+            self.toggle_trail()
+            return
+        if self.view_mode == 'fps' and key_pressed_val in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
+            self._first_person_control(key_pressed_val)
             return
 
         if key_pressed_val == pygame.K_SPACE:
@@ -639,6 +716,21 @@ class Game:
                     self.plot_request_queue.put({'agent': self.enemy_q_agent, 'type': ptype_req, 'args': pargs_req})
             else:
                 print("Q-Enemigo no entrenado o entrenando. ('Q' primero para entrenar)")
+
+    def _first_person_control(self, key):
+        """En primera persona (con el juego detenido): ←/→ giran 90°, ↑ avanza y ↓ retrocede."""
+        if self.is_running or self.input_field_active:
+            return
+        dx, dy = self.player_facing
+        if key == pygame.K_LEFT:
+            self.player_facing = (dy, -dx)
+        elif key == pygame.K_RIGHT:
+            self.player_facing = (-dy, dx)
+        elif key == pygame.K_UP:
+            self._manual_player_move(dx, dy)
+        else:
+            self._manual_player_move(-dx, -dy)
+            self.player_facing = (dx, dy)  # Retroceder no cambia hacia dónde mira
 
     def process_grid_click_in_edit_mode(self, clicked_grid_pos_tuple):
         if self.input_field_active:
@@ -719,7 +811,7 @@ class Game:
         if self.edit_mode and self.edit_mode != edit_mode_button_would_set:
             non_edit_buttons = ["start", "reset", "train_player_agent", "train_enemy_agent",
                                 "stop_train", "use_heat_map", "visualize_heat_map", "reset_heat_map",
-                                "toggle_edit_avatar_heatmap_iters"]
+                                "toggle_edit_avatar_heatmap_iters", "generate", "menu"]
             if button_id_str_clicked in non_edit_buttons or button_id_str_clicked.startswith("clear_"):
                 self.edit_mode = None
 
@@ -769,97 +861,88 @@ class Game:
             self.reset_avatar_heatmap_data()
         elif button_id_str_clicked == "toggle_edit_avatar_heatmap_iters":
             self._handle_input_field_click('avatar_heatmap_iters')
+        elif button_id_str_clicked == "toggle_view":
+            self.cycle_view_mode()
+        elif button_id_str_clicked == "toggle_trail":
+            self.toggle_trail()
+        elif button_id_str_clicked == "generate":
+            self.generate_new_random_obstacles()
+        elif button_id_str_clicked == "menu":
+            self.open_menu()
 
     def run_main_game_loop(self):
-        font_prog_ui = pygame.font.Font(None, 18)
         while self.is_pygame_loop_running:
-            prev_input_field_active_before_event_loop = self.input_field_active
-
+            dt = self.clock.tick(GameConfig.GAME_SPEED) / 1000.0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.is_pygame_loop_running = False
-                    if self.player_agent_is_training: self.stop_player_agent_training()
-                    if self.enemy_agent_is_training: self.enemy_q_agent.stop_background_training()
-                elif event.type == pygame.KEYDOWN:
-                    self._handle_keyboard_input(event)
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    clicked_on_sidebar_button_this_event = False
-                    ui_btn_id_clk = self.renderer.get_button_at(event.pos)
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                    try:
+                        pygame.display.toggle_fullscreen()
+                    except pygame.error as err:
+                        print(f"No se pudo cambiar a pantalla completa: {err}")
+                elif self.scene == "menu":
+                    action = self.menu.handle_event(event, self.game_started_once)
+                    if action:
+                        self._handle_menu_action(action)
+                else:
+                    self._handle_game_event(event)
 
-                    button_was_for_active_input_field = False
-                    if prev_input_field_active_before_event_loop and \
-                            ui_btn_id_clk == f"toggle_edit_{prev_input_field_active_before_event_loop}":
-                        button_was_for_active_input_field = True
-
-                    if ui_btn_id_clk:
-                        self._process_ui_button_click(ui_btn_id_clk)
-                        clicked_on_sidebar_button_this_event = True
-
-                    if prev_input_field_active_before_event_loop and not button_was_for_active_input_field:
-                        self._apply_input_buffer(prev_input_field_active_before_event_loop)
-                        self.input_field_active = None;
-                        self.input_buffer = ""
-
-                    if self.edit_mode and not clicked_on_sidebar_button_this_event:
-                        grid_w_px_clk = GameConfig.GRID_WIDTH * GameConfig.SQUARE_SIZE
-                        grid_h_px_clk = GameConfig.GRID_HEIGHT * GameConfig.SQUARE_SIZE
-                        if 0 <= event.pos[0] < grid_w_px_clk and 0 <= event.pos[1] < grid_h_px_clk:
-                            gx_clk = event.pos[0] // GameConfig.SQUARE_SIZE
-                            gy_clk = event.pos[1] // GameConfig.SQUARE_SIZE
-                            self.process_grid_click_in_edit_mode((gx_clk, gy_clk))
-
-            if self._replan_requested:  # Pedido por un hilo de entrenamiento al terminar
-                self._replan_requested = False
-                self.determine_player_optimal_path()
-
-            self.update()
-            self.renderer.render()
-
-            y_prog_start_draw = GameConfig.SCREEN_HEIGHT - 20
-            if self.enemy_agent_is_training or self.enemy_agent_training_complete:
-                txt_e_p = f"Ent. Enemigo: {self.enemy_agent_training_progress:.0f}% ({self.enemy_agent_training_status})"
-                if self.enemy_agent_training_complete: txt_e_p = f"Ent. Enemigo COMPLETO! ({self.enemy_agent_training_status})"
-                s_e_p = font_prog_ui.render(txt_e_p, True, GameConfig.CYAN, GameConfig.DARK_GRAY);
-                r_e_p = s_e_p.get_rect(left=5, bottom=y_prog_start_draw)
-                self.screen.blit(s_e_p, r_e_p);
-                y_prog_start_draw -= (r_e_p.height + 3)
-            if self.player_agent_is_training or self.player_agent_training_complete:
-                txt_p_p = f"Ent. Jugador: {self.player_agent_training_progress:.0f}% ({self.player_agent_training_status})"
-                if self.player_agent_training_complete: txt_p_p = f"Ent. Jugador COMPLETO! ({self.player_agent_training_status})"
-                s_p_p = font_prog_ui.render(txt_p_p, True, GameConfig.YELLOW, GameConfig.DARK_GRAY);
-                r_p_p = s_p_p.get_rect(left=5, bottom=y_prog_start_draw)
-                self.screen.blit(s_p_p, r_p_p)
-
-            if not self.plot_request_queue.empty():
-                try:
-                    req = self.plot_request_queue.get_nowait();
-                    agent_plot = req['agent'];
-                    ptype_plot = req['type'];
-                    pargs_plot = req['args']
-                    plot_func = None
-                    if ptype_plot == 'heatmap_avatar' and isinstance(agent_plot, HeatMapPathfinding):
-                        plot_func = agent_plot.visualize_heat_map
-                        plot_func(**pargs_plot)
-                    elif isinstance(agent_plot, QLearningAgent):
-                        plot_map_q = {'analysis': 'plot_analysis', 'q_heatmap': 'plot_q_values_heatmap',
-                                      'best_path_q': 'plot_best_path', 'comprehensive': 'plot_comprehensive_analysis'}
-                        m_name = plot_map_q.get(ptype_plot)
-                        if m_name: plot_func = getattr(agent_plot, m_name, None)
-                        if plot_func: plot_func(**pargs_plot)
-                    self.plot_request_queue.task_done()
-                except Empty:
-                    pass
-                except KeyError as ek:
-                    print(f"MAIN_PLOT_ERR Key: {ek} in {pargs_plot if 'pargs_plot' in locals() else 'N/A'}")
-                except Exception as e:
-                    print(f"MAIN_PLOT_ERR Gen: {e}\nReq: {req if 'req' in locals() else 'N/A'}")
-
-            pygame.display.flip();
-            self.clock.tick(GameConfig.GAME_SPEED)
+            if self.scene == "menu":
+                mouse = pygame.mouse.get_pos()
+                self.menu.draw(self.screen, dt, self.game_started_once, mouse, pygame.mouse.get_pressed()[0])
+            else:
+                if self._replan_requested:  # Pedido por un hilo de entrenamiento al terminar
+                    self._replan_requested = False
+                    self.determine_player_optimal_path()
+                self.update()
+                self.renderer.render(dt)
+                self._process_plot_requests()
+            pygame.display.flip()
 
         if self.player_agent_is_training: self.stop_player_agent_training()
         if self.enemy_agent_is_training: self.enemy_q_agent.stop_background_training()
         pygame.quit()
+
+    def _handle_game_event(self, event):
+        if self.view_mode == '3d' and self.renderer.map3d.handle_event(event, self.edit_mode):
+            return
+        if event.type == pygame.KEYDOWN:
+            self._handle_keyboard_input(event)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            previous_input_field = self.input_field_active
+            button_id = self.renderer.get_button_at(event.pos)
+            if button_id:
+                self._process_ui_button_click(button_id)
+            if previous_input_field and button_id != f"toggle_edit_{previous_input_field}":
+                self._apply_input_buffer(previous_input_field)
+                self.input_field_active = None
+                self.input_buffer = ""
+            if self.edit_mode and not button_id:
+                cell = self.renderer.screen_to_cell(event.pos)
+                if cell is not None:
+                    self.process_grid_click_in_edit_mode(cell)
+
+    def _process_plot_requests(self):
+        if self.plot_request_queue.empty():
+            return
+        req = None
+        try:
+            req = self.plot_request_queue.get_nowait()
+            agent_plot, ptype_plot, pargs_plot = req['agent'], req['type'], req['args']
+            if ptype_plot == 'heatmap_avatar' and isinstance(agent_plot, HeatMapPathfinding):
+                agent_plot.visualize_heat_map(**pargs_plot)
+            elif isinstance(agent_plot, QLearningAgent):
+                plot_map_q = {'analysis': 'plot_analysis', 'q_heatmap': 'plot_q_values_heatmap',
+                              'best_path_q': 'plot_best_path', 'comprehensive': 'plot_comprehensive_analysis'}
+                plot_func = getattr(agent_plot, plot_map_q.get(ptype_plot, ''), None)
+                if plot_func:
+                    plot_func(**pargs_plot)
+            self.plot_request_queue.task_done()
+        except Empty:
+            pass
+        except Exception as e:
+            print(f"MAIN_PLOT_ERR: {e}\nReq: {req}")
 
     def stop_player_agent_training(self):
         if not self.player_agent_is_training: print("Ent. Agente Jugador no activo."); return

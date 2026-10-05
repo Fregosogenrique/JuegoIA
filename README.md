@@ -3,7 +3,7 @@
 ![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)
 ![Pygame Version](https://img.shields.io/badge/pygame-2.x-blue.svg)
 ![License](https://img.shields.io/badge/license-Educational-green.svg)
-![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)
 ![CUValles](https://img.shields.io/badge/CUValles-IA%202024A-orange.svg)
 
 ## Resumen Ejecutivo
@@ -14,6 +14,8 @@ Este proyecto implementa un juego de simulación de movimiento en cuadrícula do
 - Sistema de turnos con velocidad relativa exacta entre avatar y enemigos.
 - Interfaz gráfica con Pygame para visualización, interacción y edición del escenario.
 - Mecanismo de entrenamiento en segundo plano para los agentes de IA.
+
+> 🎮 **Novedad v2.1:** aspecto de videojuego estilo Bomberman con menú animado, una **maqueta 3D del mapa** que puedes girar con el ratón y una **vista en primera persona** desde los ojos del avatar (tecla **Tab**).
 
 > 📘 **La explicación detallada de cada mecánica** (cómo funciona, qué se mejoró en la v2.0 y con qué parámetros se ajusta) está en **[MECANICAS.md](MECANICAS.md)**.
 
@@ -69,12 +71,16 @@ El avatar debe navegar un grid desde una posición inicial hasta una "casa" (met
     - Analiza el entorno (basado en el heatmap) para sugerir puntos de estrangulamiento, zonas seguras y posiciones para enemigos.
     - Visualización del heatmap y rutas.
 
-### Interfaz Gráfica (Pygame)
-- Visualización en tiempo real del grid, avatar, casa, obstáculos y enemigos.
-- Barra lateral con botones para controlar la simulación, entrenamientos, modos de edición y visualizaciones.
-- Campo de texto editable en la UI para configurar las iteraciones del entrenamiento del heatmap del avatar.
-- Indicadores de progreso para los entrenamientos de los agentes.
-- Mensajes de "Victoria" o "Game Over".
+### Interfaz Gráfica (Pygame, estilo Bomberman)
+- **Menú principal animado** (Jugar, Jugar en mapa 3D, Primera persona, Controles, Salir) y pausa con **Esc**.
+- **Arte generado por código** (sin imágenes externas): césped a cuadros, bloques de ladrillo y piedra con sombra, avatar tipo Bomberman con animación de caminar, enemigos-globo de colores cuyos ojos siguen al jugador y casa con faro.
+- **Movimiento suave** entre casillas, polvo al caminar, **explosión en cruz** al ser atrapado, **confeti** al ganar y un **"!"** cuando una patrulla te detecta.
+- **Tres vistas** (tecla **Tab**):
+  - **2D:** el tablero clásico visto desde arriba.
+  - **Mapa 3D:** el tablero como maqueta flotante en perspectiva. Los bloques "salen de la pantalla" al entrar, y la casa es un modelo 3D con tejado, chimenea, faro y una gema dorada. Se gira **arrastrando con el ratón** y se acerca con la **rueda**.
+  - **1ª persona:** el mundo visto con los ojos del avatar (raycasting), con brújula hacia la casa, minimapa y aviso de enemigo cercano.
+- **Marcador superior** (pasos, turno, tiempo, estado, enemigos) y **panel lateral por secciones** (Partida, Inteligencia, Editor) con iconos, barras de progreso de entrenamiento y leyenda de enemigos.
+- Ventana redimensionable y **pantalla completa con F11**.
 
 ---
 
@@ -82,7 +88,11 @@ El avatar debe navegar un grid desde una posición inicial hasta una "casa" (met
 
 ### Teclado:
 - **Espacio**: Iniciar/Detener la simulación del movimiento automático del avatar.
-- **Flechas (Arriba, Abajo, Izquierda, Derecha)**: Mover el avatar manually **solo si la simulación está detenida (`is_running = False`)**.
+- **Tab**: Cambiar de vista (2D → Mapa 3D → 1ª persona).
+- **Esc**: Volver al menú principal (pausa la partida; "Continuar" la retoma). En modo edición, sale del modo.
+- **T**: Mostrar u ocultar el rastro de feromona del mapa de calor.
+- **F11**: Pantalla completa.
+- **Flechas (Arriba, Abajo, Izquierda, Derecha)**: Mover el avatar manualmente **solo si la simulación está detenida**. En **1ª persona**, izquierda/derecha giran 90° y arriba/abajo avanzan o retroceden.
 - **R**: Reiniciar el juego completamente (mapa nuevo, resetea posiciones, borra heatmap de frecuencia, mantiene el aprendizaje de los agentes; si el mapa cambió mucho, el panel indicará que conviene reentrenarlos).
 - **H**: Iniciar entrenamiento del Agente Q-Learning del Jugador.
 - **Q**: Iniciar entrenamiento del Agente Q-Learning de los Enemigos.
@@ -96,19 +106,17 @@ El avatar debe navegar un grid desde una posición inicial hasta una "casa" (met
 - **G**: Generar un nuevo conjunto aleatorio de obstáculos.
 - **F1-F4**: Solicitar diferentes plots de análisis para el Agente Q-Learning de Enemigos (si está entrenado).
 
-### Interfaz Gráfica (Botones en la Sidebar):
-La barra lateral contiene botones que replican y extienden la funcionalidad de las teclas:
-- **Iniciar/Detener**: Equivalente a la tecla Espacio.
-- **Reiniciar Juego**: Equivalente a la tecla R.
-- **Entrenar Agente Jugador**: Equivalente a la tecla H.
-- **Entrenar Agente Enemigo**: Equivalente a la tecla Q.
-- **Detener Entrenamientos Activos**: Para los procesos de Q-learning o Heatmap.
-- **Editar Pos Jugador/Casa/Obstáculos/Enemigos**: Activan los respectivos modos de edición.
-- **Limpiar Todos Obstáculos/Enemigos**: Eliminan estos elementos del mapa.
-- **Jugador Sigue Heatmap**: Equivalente a la tecla N (interruptor).
-- **Ver Heatmap Avatar**: Equivalente a la tecla V.
-- **Resetear Heatmap Avatar**: Borra los datos aprendidos del heatmap, requiere re-entrenamiento.
-- **Iter HM Av: [valor]**: Botón que funciona como campo de texto. Al hacer clic, permite ingresar un nuevo número de iteraciones para el entrenamiento del heatmap del avatar usando el teclado numérico (Enter para confirmar, Esc para cancelar).
+### Ratón (vista Mapa 3D):
+- **Arrastrar** (botón izquierdo fuera del modo edición, o botón derecho siempre): girar e inclinar la cámara.
+- **Rueda**: acercar / alejar.
+- En modo edición, **clic** sobre la maqueta coloca o quita elementos igual que en 2D.
+
+### Interfaz Gráfica (Botones de la barra lateral):
+- **Partida:** Iniciar/Pausar (Espacio), Reiniciar (R), Vista (Tab), Mapa nuevo (G), Rastro (T).
+- **Inteligencia:** IA Jugador (H), IA Enemigos (Q), Seguir rastro (N, interruptor), Gráfica (V), Borrar rastro, Detener entrenamientos.
+  - **Hormigas: [valor]** funciona como campo de texto: al hacer clic se escribe el número de hormigas del mapa de calor (Enter confirma, Esc cancela).
+- **Editor:** Jugador (P), Casa (C), Muros (O), Enemigos (E), Quitar muros, Quitar enemigos.
+- **Menú principal (Esc).**
 
 ---
 
@@ -147,7 +155,7 @@ Resumen; la explicación completa, con fórmulas y parámetros, está en **[MECA
     ```bash
     pip install pygame numpy matplotlib
     ```
-5.  Asegúrate de tener los archivos de imagen (`player.png`, `house.png`, `enemy.png`) en la misma carpeta que `main.py`, o en una subcarpeta `assets/` (y ajusta `GameConfig.PLAYER_IMAGE`, etc., si es necesario).
+5.  No hacen falta archivos de imagen: todos los gráficos se dibujan por código (`sprites.py`).
 6.  Ejecuta el juego:
     ```bash
     python main.py
@@ -171,6 +179,11 @@ Resumen; la explicación completa, con fórmulas y parámetros, está en **[MECA
     ├── ADB.py # Implementación del Agente Q-learning
     ├── HeatMapPathfinding.py # Mapa de calor (colonia de hormigas), A* y análisis del entorno
     ├── grid_utils.py # Utilidades de cuadrícula compartidas (BFS, distancias, vecinos)
+    ├── sprites.py # Arte del juego generado por código (estilo Bomberman)
+    ├── ui.py # Componentes de interfaz y menú principal animado
+    ├── effects.py # Partículas, explosión en cruz, textos flotantes, temblor
+    ├── view3d.py # Vista "Mapa 3D": maqueta en perspectiva con cámara orbital
+    ├── raycaster.py # Vista en primera persona (raycasting)
     ├── test_mecanicas.py # Pruebas automáticas de las mecánicas (python -m unittest test_mecanicas)
     ├── MECANICAS.md # Explicación detallada de cada mecánica
     └── README.md # Esta documentación
@@ -211,6 +224,10 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 2024A en CUValle
 ---
 
 ## Registro de Versiones (Ejemplo)
+- v2.1.0 (Octubre 2026): Interfaz de videojuego estilo Bomberman.
+  * Menú principal animado, pantalla de controles y pausa.
+  * Sprites, animaciones y efectos generados por código; marcador superior y panel lateral por secciones.
+  * Vista Mapa 3D (maqueta en perspectiva, cámara orbital, casa 3D) y vista en primera persona (raycasting).
 - v2.0.0 (Octubre 2026): Actualización de todas las mecánicas conservando la esencia del juego (ver [MECANICAS.md](MECANICAS.md)).
   * Sistema de turnos con velocidad de enemigos exacta (antes iban al doble de lo configurado).
   * Mapa de calor como colonia de hormigas: rutas óptimas y entrenamiento ~4× más rápido.
@@ -259,8 +276,9 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 2024A en CUValle
     *   Asegúrate de tener todos los archivos del proyecto actualizados y en la misma carpeta.
     *   Verifica las versiones de Python y las bibliotecas.
 
-5.  **Las imágenes no se cargan:**
-    *   Asegúrate de que los archivos de imagen (`player.png`, `house.png`, `enemy.png`) estén en la misma carpeta que `main.py`, o en una subcarpeta `assets/` y que la ruta en `GameRenderer._load_image()` (vía `GameConfig`) sea correcta.
+5.  **La ventana no cabe en mi pantalla o la vista 3D va lenta:**
+    *   La ventana se puede redimensionar (el juego se escala) o poner a pantalla completa con **F11**.
+    *   La vista Mapa 3D recalcula el suelo a media resolución mientras giras la cámara y a resolución completa al soltarla; si tu equipo es lento, usa la vista 2D o baja `GAME_SPEED` en `config.py`.
 
 ---
 
