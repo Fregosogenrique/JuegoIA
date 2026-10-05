@@ -1,5 +1,6 @@
 import random
 from config import GameConfig
+from grid_utils import is_reachable
 
 
 class GameState:
@@ -67,28 +68,37 @@ class GameState:
                 print(f"Advertencia GS: Posición de enemigo {pos} no válida al inicializar.")
 
     def generate_obstacles(self):
-        self.obstacles.clear()  # Siempre empezar con un set vacío
+        """
+        Coloca OBSTACLE_PERCENTAGE % de obstáculos al azar y GARANTIZA que la casa
+        sea alcanzable desde el jugador (verificación BFS). Si un mapa aleatorio
+        deja la casa encerrada, se descarta y se genera otro.
+        """
         num_obstacles = int((self.grid_width * self.grid_height) * (GameConfig.OBSTACLE_PERCENTAGE / 100))
+        reserved = {self.player_pos, self.initial_player_pos, self.house_pos} | self.enemy_positions
 
+        for layout_attempt in range(GameConfig.MAX_OBSTACLE_LAYOUT_ATTEMPTS):
+            self.obstacles = self._random_obstacle_layout(num_obstacles, reserved)
+            if is_reachable(self.grid_width, self.grid_height, self.initial_player_pos, self.house_pos,
+                            self.obstacles):
+                if layout_attempt > 0:
+                    print(f"GS: Mapa válido tras {layout_attempt + 1} intentos (casa alcanzable).")
+                return
+        print("Advertencia GS: No se generó un mapa con la casa alcanzable; se usa un mapa sin obstáculos.")
+        self.obstacles = set()
+
+    def _random_obstacle_layout(self, num_obstacles, reserved):
+        obstacles = set()
         attempts = 0
         max_attempts = num_obstacles * 5  # Para evitar bucles infinitos
-
-        while len(self.obstacles) < num_obstacles and attempts < max_attempts:
-            x = random.randint(0, self.grid_width - 1)
-            y = random.randint(0, self.grid_height - 1)
-            pos = (x, y)
-
-            if pos != self.player_pos and \
-                    pos != self.initial_player_pos and \
-                    pos != self.house_pos and \
-                    pos not in self.enemy_positions and \
-                    pos not in self.obstacles:  # Evitar duplicados
-                self.obstacles.add(pos)
+        while len(obstacles) < num_obstacles and attempts < max_attempts:
+            pos = (random.randint(0, self.grid_width - 1), random.randint(0, self.grid_height - 1))
+            if pos not in reserved:
+                obstacles.add(pos)
             attempts += 1
+        return obstacles
 
-        if attempts >= max_attempts and len(self.obstacles) < num_obstacles:
-            print(
-                f"Advertencia GS: No se pudieron generar todos los obstáculos. Generados: {len(self.obstacles)} de {num_obstacles}")
+    def is_house_reachable(self):
+        return is_reachable(self.grid_width, self.grid_height, self.player_pos, self.house_pos, self.obstacles)
 
     def is_valid_move(self, pos):
         """Verifica si una posición es válida para mover al jugador."""
@@ -167,10 +177,12 @@ class GameState:
             return False
 
         # Un enemigo PUEDE moverse a la posición del jugador (para atraparlo).
-        # No puede moverse a obstáculos u otros enemigos.
+        # No puede moverse a obstáculos ni a otros enemigos.
+        # Tampoco puede ocupar la casa: así el jugador siempre tiene una meta libre.
         is_valid_for_moving_enemy = (0 <= new_pos[0] < self.grid_width and
                                      0 <= new_pos[1] < self.grid_height and
-                                     new_pos not in self.obstacles)
+                                     new_pos not in self.obstacles and
+                                     new_pos != self.house_pos)
 
         collides_with_other_enemy = False
         for other_id, data in self.enemies.items():

@@ -1,12 +1,51 @@
 # HeatMapPathfinding.py
-import numpy as np
+"""
+Mapa de calor del avatar + búsqueda de rutas sobre ese mapa.
+
+La idea original se mantiene: se simulan muchas "caminatas" desde el avatar
+hasta la casa y las celdas de las caminatas exitosas se "calientan"; después
+un A* prefiere las celdas calientes. La mejora formaliza esa idea como una
+COLONIA DE HORMIGAS (Ant Colony Optimization, Dorigo 1996):
+
+- Cada caminata es una hormiga. En cada paso elige vecino con probabilidad
+      p(n) ∝ (τ(n) + τ0)^α · exp(-β·Δd(n)) · exp(-peligro(n))
+  τ = feromona (el valor del mapa de calor), Δd = cuánto se aleja de la casa
+  según la distancia REAL (BFS, rodea muros), peligro = cercanía a enemigos.
+- Las hormigas tienen memoria (no repiten celdas) y antes de depositar se
+  borran los bucles del camino, así no se calientan los rodeos.
+- EVAPORACIÓN: en cada iteración τ ← (1-ρ)·τ. Las rutas viejas o malas se
+  enfrían; antes el calor sólo se acumulaba.
+- DEPÓSITO ∝ 1/longitud: las rutas cortas calientan más (antes el refuerzo
+  dependía de la posición dentro del camino).
+- ELITISMO: la mejor ruta conocida se refuerza en cada iteración.
+
+El A* ahora usa un costo por celda >= 1 (heurística Manhattan admisible, por
+lo que la ruta es óptima para ese costo) y sí considera a los enemigos:
+      costo(n) = 1 + w_calor·(1 - τ(n)/τ_max) + peligro(n)
+"""
 import heapq
+import math
 import random
+
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+import numpy as np
+
+from config import GameConfig
+from grid_utils import UNREACHABLE, bfs_distance_map, manhattan, neighbors_4
 
 
 class HeatMapPathfinding:
+    # Parámetros de la colonia de hormigas
+    ACO_ALPHA = 1.0          # Peso de la feromona
+    ACO_BETA = 1.5           # Peso de la heurística (acercarse a la casa)
+    ACO_TAU0 = 0.5           # Feromona base: evita que celdas frías tengan probabilidad 0
+    ACO_EVAPORATION = 0.05   # ρ: fracción de feromona que se evapora por iteración
+    ACO_DEPOSIT = 10.0       # Q: feromona total que deposita una hormiga exitosa (Q / L por celda)
+    ACO_ELITE_WEIGHT = 2.0   # Refuerzo extra de la mejor ruta conocida
+
+    # Parámetros del A*
+    HEAT_WEIGHT = 0.5        # Cuánto prefiere el A* las celdas calientes
+
     def __init__(self, width, height):
         self.width = width
         self.height = height
@@ -17,179 +56,223 @@ class HeatMapPathfinding:
         self.choke_points = []
         self.safe_zones = []
         self.last_analysis_params = None
+        self.best_training_path = None
 
     def reset(self):
         self.avatar_heat_map.fill(0)
         self.enemy_heat_map.fill(0)
         self.potential_enemy_positions.clear()
-        self.choke_points = [];
+        self.choke_points = []
         self.safe_zones = []
         self.last_analysis_params = None
+        self.best_training_path = None
 
+    # ------------------------------------------------------------- utilidades
     def manhattan_distance(self, p1, p2):
-        return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
+        return manhattan(p1, p2)
 
     def _is_valid(self, pos, obstacles_set, target_goal=None):
         x, y = pos
-        return 0 <= x < self.width and \
-            0 <= y < self.height and \
+        return 0 <= x < self.width and 0 <= y < self.height and \
             (pos not in obstacles_set or (target_goal is not None and pos == target_goal))
 
     def _get_neighbors(self, pos, obstacles_set, target_goal=None):
-        x, y = pos
-        neighbors = []
-        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            nx, ny = x + dx, y + dy
-            if self._is_valid((nx, ny), obstacles_set, target_goal):
-                neighbors.append((nx, ny))
-        return neighbors
+        return [n for n in neighbors_4(pos, self.width, self.height) if self._is_valid(n, obstacles_set, target_goal)]
+
+    @staticmethod
+    def danger_cost(pos, enemy_positions):
+        """
+        Penalización por cercanía a enemigos: DANGER_WEIGHT / (1 + d) para
+        d <= DANGER_RADIUS. Una celda con enemigo (d = 0) es infinita.
+        """
+        total = 0.0
+        for enemy_pos in enemy_positions:
+            d = manhattan(pos, enemy_pos)
+            if d == 0:
+                return math.inf
+            if d <= GameConfig.DANGER_RADIUS:
+                total += GameConfig.DANGER_WEIGHT / (1 + d)
+        return total
+
+    def path_cost(self, path, enemy_positions=()):
+        """Costo comparable entre rutas de distinto origen: pasos + peligro acumulado."""
+        if not path:
+            return math.inf
+        return sum(1 + self.danger_cost(p, enemy_positions) for p in path[1:])
+
+    @staticmethod
+    def _loop_erase(path):
+        """Elimina los bucles de un camino (si se vuelve a una celda, se corta el rodeo)."""
+        index_of = {}
+        clean = []
+        for pos in path:
+            if pos in index_of:
+                cut = index_of[pos]
+                for removed in clean[cut + 1:]:
+                    del index_of[removed]
+                clean = clean[:cut + 1]
+            else:
+                index_of[pos] = len(clean)
+                clean.append(pos)
+        return clean
+
+    # ---------------------------------------------- entrenamiento (hormigas)
+    def _ant_walk(self, start_pos, goal_pos, obstacles_set, dist_goal, danger, max_steps):
+        current = start_pos
+        path = [current]
+        visited = {current}
+        tau = self.avatar_heat_map
+        for _ in range(max_steps):
+            if current == goal_pos:
+                break
+            neighbors = [n for n in self._get_neighbors(current, obstacles_set, goal_pos)
+                         if danger[n[1], n[0]] != math.inf]
+            if not neighbors:
+                break
+            fresh = [n for n in neighbors if n not in visited]
+            candidates = fresh or neighbors  # Sin salida nueva: se permite retroceder (luego se borra el bucle)
+
+            d_current = dist_goal[current[1], current[0]]
+            weights = []
+            for n in candidates:
+                delta = dist_goal[n[1], n[0]] - d_current  # -1 se acerca, +1 se aleja
+                weights.append(((tau[n[1], n[0]] + self.ACO_TAU0) ** self.ACO_ALPHA)
+                               * math.exp(-self.ACO_BETA * delta - danger[n[1], n[0]]))
+            current = random.choices(candidates, weights=weights)[0]
+            path.append(current)
+            visited.add(current)
+        return path
+
+    def _deposit(self, path, amount_total):
+        per_cell = amount_total / max(1, len(path))
+        for x, y in path:
+            self.avatar_heat_map[y, x] += per_cell
 
     def train(self, start_pos, goal_pos, obstacles, enemy_positions_set, iterations=1000, callback=None):
+        """
+        Entrena el mapa de calor con `iterations` hormigas. Devuelve la mejor
+        ruta encontrada (o None). `callback` puede devolver False para cancelar.
+        """
         self.avatar_heat_map.fill(0)
-        obstacles_set = set(obstacles) if not isinstance(obstacles, set) else obstacles
-        best_path_found = None
+        self.best_training_path = None
+        obstacles_set = obstacles if isinstance(obstacles, (set, frozenset)) else set(obstacles)
+        enemies = set(enemy_positions_set or ())
+
+        dist_goal = bfs_distance_map(self.width, self.height, goal_pos, obstacles_set)
+        if dist_goal[start_pos[1], start_pos[0]] == UNREACHABLE:
+            if callback:
+                callback(iterations, iterations, None, None, 100.0, is_final=True)
+            return None
+        dist_goal = np.where(dist_goal == UNREACHABLE, self.width * self.height, dist_goal)
+
+        danger = np.zeros((self.height, self.width))
+        if enemies:
+            for y in range(self.height):
+                for x in range(self.width):
+                    danger[y, x] = self.danger_cost((x, y), enemies)
+        danger[goal_pos[1], goal_pos[0]] = 0.0
+
+        max_steps = 4 * int(dist_goal[start_pos[1], start_pos[0]]) + 20
+        best_path = None
 
         for i in range(iterations):
-            if callback and not callback(i, iterations, None, best_path_found, (i / iterations) * 100.0,
-                                         is_final=False):
-                return best_path_found
+            if callback and not callback(i, iterations, None, best_path, (i / iterations) * 100.0, is_final=False):
+                self.best_training_path = best_path
+                return best_path
 
-            current_pos = start_pos
-            path_taken = [current_pos]
-            max_steps = (self.width * self.height) // 2 + self.manhattan_distance(start_pos, goal_pos) * 2
-            max_steps = max(max_steps, 20)
+            walk = self._ant_walk(start_pos, goal_pos, obstacles_set, dist_goal, danger, max_steps)
 
-            for step_num in range(max_steps):
-                if current_pos == goal_pos:
-                    break
+            self.avatar_heat_map *= (1.0 - self.ACO_EVAPORATION)
+            if walk[-1] == goal_pos:
+                walk = self._loop_erase(walk)
+                self._deposit(walk, self.ACO_DEPOSIT)
+                if best_path is None or len(walk) < len(best_path):
+                    best_path = walk
+            if best_path:
+                self._deposit(best_path, self.ACO_DEPOSIT * self.ACO_ELITE_WEIGHT)
 
-                neighbors = self._get_neighbors(current_pos, obstacles_set, target_goal=goal_pos)
-                if not neighbors:
-                    break
-
-                weighted_neighbors = []
-                for neighbor_pos in neighbors:
-                    weight = self.manhattan_distance(neighbor_pos, goal_pos) * -10.0
-                    for enemy_pos in enemy_positions_set:
-                        dist_to_enemy = self.manhattan_distance(neighbor_pos, enemy_pos)
-                        if dist_to_enemy < 1:
-                            weight -= 2000
-                        elif dist_to_enemy < 3:
-                            weight -= 600 / (dist_to_enemy + 0.1)
-
-                    weight += self.avatar_heat_map[neighbor_pos[1], neighbor_pos[0]] * 0.05
-                    weighted_neighbors.append((weight + random.uniform(-0.1, 0.1), neighbor_pos))
-
-                if not weighted_neighbors: break
-
-                if random.random() < 0.15 and len(weighted_neighbors) > 1:
-                    current_pos = random.choice(neighbors)
-                else:
-                    weighted_neighbors.sort(key=lambda x: x[0], reverse=True)
-                    current_pos = weighted_neighbors[0][1]
-
-                if current_pos in path_taken and len(path_taken) > 5:
-                    valid_random_choices = [n for n in neighbors if n not in path_taken[-3:]]
-                    if valid_random_choices:
-                        current_pos = random.choice(valid_random_choices)
-                    elif neighbors:
-                        current_pos = random.choice(neighbors)
-                    else:
-                        break
-                path_taken.append(current_pos)
-
-            if path_taken[-1] == goal_pos:
-                if best_path_found is None or len(path_taken) < len(best_path_found):
-                    best_path_found = list(path_taken)
-
-                path_len = len(path_taken)
-                for idx, pos_in_path in enumerate(path_taken):
-                    reinforcement = (1.0 / (path_len + 1e-5)) * (path_len - idx) * 15.0
-                    self.avatar_heat_map[pos_in_path[1], pos_in_path[0]] += reinforcement
-
+        self.best_training_path = best_path
         if callback:
-            callback(iterations, iterations, None, best_path_found, 100.0, is_final=True)
-        return best_path_found
+            callback(iterations, iterations, None, best_path, 100.0, is_final=True)
+        return best_path
 
+    # ------------------------------------------------------------- búsqueda
     def find_path_with_heat_map(self, start_pos, goal_pos, obstacles=None, enemy_positions_set=None, is_avatar=True):
-        heatmap_to_use = self.avatar_heat_map if is_avatar else self.enemy_heat_map
-
+        """A* sobre el mapa de calor, evitando enemigos y sus alrededores."""
         if start_pos == goal_pos:
             return [start_pos]
 
-        obstacles_set = set(obstacles) if obstacles and not isinstance(obstacles, set) else (obstacles or set())
+        obstacles_set = set(obstacles) if obstacles and not isinstance(obstacles, (set, frozenset)) \
+            else (obstacles or set())
+        enemies = set(enemy_positions_set or ())
+        heatmap_to_use = self.avatar_heat_map if is_avatar else self.enemy_heat_map
 
-        direct_neighbors_of_start = []
-        for dx_direct, dy_direct in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            nx_direct, ny_direct = start_pos[0] + dx_direct, start_pos[1] + dy_direct
-            if 0 <= nx_direct < self.width and 0 <= ny_direct < self.height:
-                direct_neighbors_of_start.append((nx_direct, ny_direct))
-
-        if goal_pos in direct_neighbors_of_start and goal_pos not in obstacles_set:
-            return [start_pos, goal_pos]
-
-        if not heatmap_to_use.any() and is_avatar:
+        if is_avatar and not heatmap_to_use.any():
             if obstacles is None:
                 print("Error: Obstáculos no provistos para entrenamiento ad-hoc de heatmap.")
                 return None
-            current_enemies_for_adhoc = set(enemy_positions_set) if enemy_positions_set is not None else set()
-            # print(f"Find_path: Heatmap vacío, entrenando ad-hoc con {len(current_enemies_for_adhoc)} enemigos considerados.") # Para depuración
-            self.train(start_pos, goal_pos, obstacles, current_enemies_for_adhoc, iterations=200, callback=None)
+            self.train(start_pos, goal_pos, obstacles_set, enemies, iterations=200)
             if not self.avatar_heat_map.any():
-                print("Find_path: Fallo en entrenamiento ad-hoc.")
                 return None
-            heatmap_to_use = self.avatar_heat_map
 
-        pq = []
-        initial_h_cost = self.manhattan_distance(start_pos, goal_pos)
-        heapq.heappush(pq, (initial_h_cost, 0, start_pos))
+        heat_max = float(np.max(heatmap_to_use)) or 1.0
+        danger_cache = {}
 
+        def step_cost(cell):
+            if cell == goal_pos:
+                return 1.0
+            if cell not in danger_cache:
+                danger_cache[cell] = self.danger_cost(cell, enemies)
+            coldness = 1.0 - heatmap_to_use[cell[1], cell[0]] / heat_max
+            return 1.0 + self.HEAT_WEIGHT * coldness + danger_cache[cell]
+
+        open_heap = [(manhattan(start_pos, goal_pos), 0.0, start_pos)]
         came_from = {start_pos: None}
-        cost_so_far = {start_pos: 0}
+        cost_so_far = {start_pos: 0.0}
+        closed = set()
 
-        max_exploration_nodes = self.width * self.height * 2
-        nodes_explored = 0
-
-        while pq and nodes_explored < max_exploration_nodes:
-            nodes_explored += 1
-            f_cost_current_node, g_cost_current, current = heapq.heappop(pq)
-
+        while open_heap:
+            _, g_current, current = heapq.heappop(open_heap)
+            if current in closed:
+                continue
             if current == goal_pos:
                 path = []
-                temp = current
-                while temp is not None:
-                    path.append(temp)
-                    temp = came_from[temp]
+                while current is not None:
+                    path.append(current)
+                    current = came_from[current]
                 return path[::-1]
+            closed.add(current)
 
             for neighbor in self._get_neighbors(current, obstacles_set, target_goal=goal_pos):
-                heat_val = 0
-                if 0 <= neighbor[1] < self.height and 0 <= neighbor[0] < self.width:
-                    heat_val = heatmap_to_use[neighbor[1], neighbor[0]]
-
-                base_movement_cost = 1.0
-
-                if neighbor == goal_pos:
-                    step_cost = 0.01
-                else:
-                    heat_influence_factor = 0.5
-                    adjusted_cost_from_heat = - (heat_val * heat_influence_factor * 0.01)
-                    step_cost = max(0.1, base_movement_cost + adjusted_cost_from_heat)
-
-                new_g_cost = g_cost_current + step_cost
-
-                if neighbor not in cost_so_far or new_g_cost < cost_so_far[neighbor]:
-                    cost_so_far[neighbor] = new_g_cost
-                    priority = new_g_cost + self.manhattan_distance(neighbor, goal_pos)
-                    heapq.heappush(pq, (priority, new_g_cost, neighbor))
+                cost = step_cost(neighbor)
+                if cost == math.inf:
+                    continue
+                new_g = g_current + cost
+                if new_g < cost_so_far.get(neighbor, math.inf):
+                    cost_so_far[neighbor] = new_g
                     came_from[neighbor] = current
+                    heapq.heappush(open_heap, (new_g + manhattan(neighbor, goal_pos), new_g, neighbor))
         return None
 
+    # ---------------------------------------------- análisis del entorno
+    def _detour_if_blocked(self, cell, start_pos, goal_pos, obstacles_set, base_length):
+        """Pasos extra que costaría llegar a la meta si `cell` estuviera bloqueada."""
+        dist = bfs_distance_map(self.width, self.height, goal_pos, obstacles_set | {cell})
+        d = dist[start_pos[1], start_pos[0]]
+        return math.inf if d == UNREACHABLE else d - base_length
+
     def analyze_environment(self, player_start_pos, goal_pos, obstacles, num_enemies):
+        """
+        Identifica, a partir del mapa de calor entrenado:
+        - choke_points (cuellos de botella): celdas de la ruta principal cuyo
+          bloqueo obliga a un rodeo de 4+ pasos (o deja la casa inalcanzable).
+        - safe_zones: celdas frías y alejadas de la ruta (buenas para patrullas).
+        - potential_enemy_positions: tramo central de la ruta + cuellos de botella.
+        """
         if not self.avatar_heat_map.any():
             return False
 
-        current_params = (player_start_pos, goal_pos, tuple(sorted(list(obstacles))), num_enemies)
+        current_params = (player_start_pos, goal_pos, tuple(sorted(obstacles)), num_enemies)
         if current_params == self.last_analysis_params:
             return True
 
@@ -199,42 +282,38 @@ class HeatMapPathfinding:
         self.safe_zones = []
 
         obstacles_set = set(obstacles)
-        best_path_player_ref = self.find_path_with_heat_map(player_start_pos, goal_pos, obstacles_set,
-                                                            enemy_positions_set=set(), is_avatar=True)
+        reference_path = self.find_path_with_heat_map(player_start_pos, goal_pos, obstacles_set,
+                                                      enemy_positions_set=set(), is_avatar=True)
 
-        if best_path_player_ref:
-            for r in range(self.height):
-                for c in range(self.width):
-                    pos = (c, r)
-                    if pos in obstacles_set or pos == player_start_pos or pos == goal_pos:
-                        continue
-                    if pos in best_path_player_ref:
-                        valid_neighbors = len(self._get_neighbors(pos, obstacles_set, target_goal=goal_pos))
-                        if valid_neighbors <= 2:
-                            self.choke_points.append(pos)
+        if reference_path:
+            base_dist = bfs_distance_map(self.width, self.height, goal_pos, obstacles_set)
+            base_length = base_dist[player_start_pos[1], player_start_pos[0]]
+            detours = []
+            for pos in reference_path[1:-1]:
+                detour = self._detour_if_blocked(pos, player_start_pos, goal_pos, obstacles_set, base_length)
+                narrow = len(self._get_neighbors(pos, obstacles_set, goal_pos)) <= 2
+                if detour >= 4 or narrow:
+                    detours.append((detour, pos))
+            detours.sort(key=lambda item: item[0], reverse=True)
+            self.choke_points = [pos for _, pos in detours]
 
-        threshold_safe = np.percentile(self.avatar_heat_map[self.avatar_heat_map > 0], 25) if np.any(
-            self.avatar_heat_map > 0) else 0.5
+        heat_values = self.avatar_heat_map[self.avatar_heat_map > 0]
+        threshold_safe = np.percentile(heat_values, 25) if heat_values.size else 0.5
+        path_cells = set(reference_path or [])
         for r in range(self.height):
             for c in range(self.width):
                 pos = (c, r)
                 if pos in obstacles_set or pos == player_start_pos or pos == goal_pos:
                     continue
-                if self.avatar_heat_map[r, c] < threshold_safe and self.avatar_heat_map[r, c] >= 0:
-                    is_far_from_path = True
-                    if best_path_player_ref:
-                        for path_node in best_path_player_ref:
-                            if self.manhattan_distance(pos, path_node) < 3:
-                                is_far_from_path = False;
-                                break
-                    if is_far_from_path:
-                        self.safe_zones.append(pos)
+                if self.avatar_heat_map[r, c] < threshold_safe and \
+                        all(manhattan(pos, node) >= 3 for node in path_cells):
+                    self.safe_zones.append(pos)
 
-        if best_path_player_ref:
-            for node_idx, node_on_path in enumerate(best_path_player_ref):
-                if node_idx > len(best_path_player_ref) // 4 and node_idx < len(best_path_player_ref) * 3 // 4:
-                    if self.manhattan_distance(node_on_path, player_start_pos) > 3:
-                        self.potential_enemy_positions.add(node_on_path)
+        if reference_path:
+            n = len(reference_path)
+            for idx, node in enumerate(reference_path):
+                if n // 4 < idx < n * 3 // 4 and manhattan(node, player_start_pos) > 3:
+                    self.potential_enemy_positions.add(node)
 
         for cp in self.choke_points:
             if len(self.potential_enemy_positions) < num_enemies * 2:
@@ -242,62 +321,52 @@ class HeatMapPathfinding:
 
         attempts = 0
         while len(self.potential_enemy_positions) < num_enemies and attempts < self.width * self.height * 2:
-            rx, ry = random.randint(0, self.width - 1), random.randint(0, self.height - 1)
-            rpos = (rx, ry)
-            if self._is_valid(rpos, obstacles_set,
-                              target_goal=goal_pos) and rpos != player_start_pos and rpos != goal_pos:
-                if rpos not in self.choke_points and rpos not in self.safe_zones:
-                    self.potential_enemy_positions.add(rpos)
+            rpos = (random.randint(0, self.width - 1), random.randint(0, self.height - 1))
+            if self._is_valid(rpos, obstacles_set) and rpos not in (player_start_pos, goal_pos) \
+                    and rpos not in self.choke_points and rpos not in self.safe_zones:
+                self.potential_enemy_positions.add(rpos)
             attempts += 1
         return True
 
+    # ------------------------------------------------------------ gráfica
     def visualize_heat_map(self, start_pos=None, goal_pos=None, path=None, obstacles_vis=None, title="Heatmap",
-                           is_avatar=True, show=True, save_path=None):
+                           is_avatar=True, show=True, save_path=None, enemies_vis=None):
         heatmap_to_display = self.avatar_heat_map if is_avatar else self.enemy_heat_map
         if not heatmap_to_display.any():
             print(f"Visualize HM: Heatmap {'Avatar' if is_avatar else 'Enemigo'} está vacío.")
             return
 
-        plt.figure(figsize=(max(8, self.width * 0.4), max(6, self.height * 0.4)))
-
-        vmin_plot, vmax_plot = np.min(heatmap_to_display), np.max(heatmap_to_display)
-        if vmin_plot == vmax_plot: vmax_plot += 0.1
-
-        plt.imshow(heatmap_to_display.T, cmap='viridis', origin='lower', interpolation='bilinear', vmin=vmin_plot,
-                   vmax=vmax_plot)
-        plt.colorbar(label="Valor del Heatmap")
+        fig = plt.figure(figsize=(max(8, self.width * 0.3), max(6, self.height * 0.3)))
+        # Misma orientación que el juego: x hacia la derecha, y hacia abajo.
+        plt.imshow(heatmap_to_display, cmap='viridis', origin='upper', interpolation='nearest',
+                   extent=(-0.5, self.width - 0.5, self.height - 0.5, -0.5))
+        plt.colorbar(label="Feromona (calor)")
 
         if obstacles_vis:
-            obs_x = [o[0] for o in obstacles_vis]
-            obs_y = [o[1] for o in obstacles_vis]
-            plt.scatter(obs_x, obs_y, marker='s', s=60, color='black', alpha=0.7, label='Obstáculos')
-
+            plt.scatter([o[0] for o in obstacles_vis], [o[1] for o in obstacles_vis], marker='s', s=40,
+                        color='black', alpha=0.7, label='Obstáculos')
+        if enemies_vis:
+            plt.scatter([e[0] for e in enemies_vis], [e[1] for e in enemies_vis], marker='X', s=120,
+                        color='red', edgecolor='white', label='Enemigos', zorder=5)
         if start_pos:
-            plt.scatter(start_pos[0], start_pos[1], marker='o', s=120, color='cyan', edgecolor='black', linewidth=1.5,
-                        label='Inicio', zorder=5)
+            plt.scatter(start_pos[0], start_pos[1], marker='o', s=120, color='cyan', edgecolor='black',
+                        linewidth=1.5, label='Inicio', zorder=5)
         if goal_pos:
-            plt.scatter(goal_pos[0], goal_pos[1], marker='*', s=180, color='magenta', edgecolor='black', linewidth=1.5,
-                        label='Meta', zorder=5)
-
+            plt.scatter(goal_pos[0], goal_pos[1], marker='*', s=180, color='magenta', edgecolor='black',
+                        linewidth=1.5, label='Meta', zorder=5)
         if path:
-            path_x = [p[0] for p in path]
-            path_y = [p[1] for p in path]
-            plt.plot(path_x, path_y, 'w--', linewidth=2.5, label='Camino')
+            plt.plot([p[0] for p in path], [p[1] for p in path], 'w--', linewidth=2.5, label='Camino')
 
         plt.title(title, fontsize=14)
-        plt.xlabel("X");
+        plt.xlabel("X")
         plt.ylabel("Y")
-        x_ticks_step = 1 if self.width <= 20 else max(1, self.width // 10)
-        y_ticks_step = 1 if self.height <= 20 else max(1, self.height // 10)
-        plt.xticks(np.arange(0, self.width, x_ticks_step))
-        plt.yticks(np.arange(0, self.height, y_ticks_step))
-
-        plt.grid(True, which='major', color='dimgray', linestyle='-', linewidth=0.7, alpha=0.5)
+        plt.legend(loc='upper right', fontsize='small')
         plt.xlim(-0.5, self.width - 0.5)
         plt.ylim(self.height - 0.5, -0.5)
 
-        if save_path: plt.savefig(save_path)
+        if save_path:
+            plt.savefig(save_path)
         if show:
             plt.show()
         else:
-            plt.close()
+            plt.close(fig)
