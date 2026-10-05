@@ -53,14 +53,35 @@ class GameConfig:
     HOUSE_IMAGE = "27187.jpg.webp"
     ENEMY_IMAGE = "enemy.png"
 
-    GAME_SPEED = 10
-    MOVE_DELAY = 150  # Reducido para movimiento más fluido
-    HEADLESS_DELAY = 30
+    GAME_SPEED = 30  # FPS del bucle de dibujo (independiente de la velocidad de los turnos)
+    MOVE_DELAY = 150  # ms por turno
+    HEADLESS_DELAY = 30  # ms por turno en modo sin cabeza
     OBSTACLE_PERCENTAGE = 18  # Ligeramente reducido para grid más grande
 
+    # --- Turnos ---
+    # Cada MOVE_DELAY ms ocurre un "turno": el jugador da un paso y los enemigos
+    # acumulan ENEMY_SPEED_FACTOR; cada vez que el acumulado llega a 1 dan un paso.
+    # 0.5 = un paso enemigo cada 2 turnos, 0.75 = 3 pasos cada 4 turnos, 1.5 = 3 cada 2.
     ENEMY_SPEED_FACTOR = 0.5
     ENEMY_MIN_PLAYER_DISTANCE = 3
     DEFAULT_ENEMY_TYPE = "perseguidor"
+    ENEMY_TYPES = ["perseguidor", "bloqueador", "patrulla", "aleatorio"]
+
+    # --- Comportamiento de los tipos de enemigo ---
+    BLOCKER_LOOKAHEAD = 6          # Bloqueador: apunta a la celda N pasos adelante en la ruta del jugador
+    PATROL_RADIUS = 5              # Patrulla: radio de su ronda alrededor del punto de aparición
+    PATROL_DETECTION_RADIUS = 6    # Patrulla: distancia a la que detecta al jugador y empieza a perseguir
+    PATROL_LOSE_RADIUS = 10        # Patrulla: distancia a la que pierde al jugador y vuelve a patrullar
+    RANDOM_ENEMY_INERTIA = 0.6     # Aleatorio: probabilidad de mantener la dirección anterior
+    ENEMY_LOOP_MEMORY = 4          # Celdas recientes que un enemigo recuerda para no oscilar
+
+    # --- Evasión del avatar ---
+    DANGER_RADIUS = 3              # Distancia a la que un enemigo "calienta" el costo de una celda
+    DANGER_WEIGHT = 6.0            # Costo extra junto a un enemigo (decrece con 1/(1+d))
+    REPLAN_EVERY_TURNS = 3         # Con enemigos presentes, la ruta se recalcula cada N turnos
+    THREAT_LOOKAHEAD = 4           # Celdas de la ruta que se vigilan para replanificar de inmediato
+
+    MAX_OBSTACLE_LAYOUT_ATTEMPTS = 30  # Reintentos para generar un mapa donde la casa sea alcanzable
 
     INITIAL_PLAYER_POS = (1, 1)
     INITIAL_HOUSE_POS = (GRID_WIDTH - 2, GRID_HEIGHT - 2)

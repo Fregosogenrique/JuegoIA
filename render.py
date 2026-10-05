@@ -60,7 +60,9 @@ class GameRenderer:
                                               style="dashed")
 
         if self.game.current_path_player and len(self.game.current_path_player) > 1 and self.game.is_running:
-            self._draw_path_lines_on_grid(self.game.current_path_player, GameConfig.ORANGE, line_width=3, style="solid")
+            # Sólo el tramo que falta recorrer (desde la celda actual del avatar)
+            remaining_path = self.game.current_path_player[max(0, self.game.path_index_player - 1):]
+            self._draw_path_lines_on_grid(remaining_path, GameConfig.ORANGE, line_width=3, style="solid")
 
         self._draw_player_sprite()
         self._draw_house_sprite()
@@ -89,8 +91,8 @@ class GameRenderer:
         for r_idx_avatar in range(GameConfig.GRID_HEIGHT):
             for c_idx_avatar in range(GameConfig.GRID_WIDTH):
                 heat_value_cell = avatar_heatmap_data_matrix[r_idx_avatar, c_idx_avatar]
-                if heat_value_cell > 0:
-                    intensity_ratio_avatar = heat_value_cell / max_heat_val_avatar
+                intensity_ratio_avatar = heat_value_cell / max_heat_val_avatar
+                if intensity_ratio_avatar >= 0.02:  # La feromona casi evaporada no se dibuja
                     color_index_avatar = min(int(intensity_ratio_avatar * (len(GameConfig.HEAT_COLORS) - 1)),
                                              len(GameConfig.HEAT_COLORS) - 1)
                     chosen_heatmap_color = GameConfig.HEAT_COLORS[color_index_avatar]
@@ -147,6 +149,10 @@ class GameRenderer:
                 pos_of_enemy = data_of_enemy['position']
                 type_of_enemy = data_of_enemy.get('type', GameConfig.DEFAULT_ENEMY_TYPE)
                 self._draw_one_enemy_sprite(pos_of_enemy, type_of_enemy)
+                if data_of_enemy.get('state') == 'chase':  # Aro rojo: este enemigo está persiguiendo al avatar
+                    pygame.draw.rect(self.screen, GameConfig.RED,
+                                     (pos_of_enemy[0] * GameConfig.SQUARE_SIZE, pos_of_enemy[1] * GameConfig.SQUARE_SIZE,
+                                      GameConfig.SQUARE_SIZE, GameConfig.SQUARE_SIZE), 2)
 
     def _draw_one_enemy_sprite(self, enemy_on_grid_pos, enemy_type_name_str):
         enemy_type_color_map = {
@@ -283,8 +289,8 @@ class GameRenderer:
         ]
 
         button_y_start_offset = main_title_ui_rect.bottom + 20
-        button_render_height = 26
-        button_vertical_margin = 7
+        button_render_height = 24
+        button_vertical_margin = 6
         self.button_rects.clear()
 
         for i, (button_id_str, button_text_str) in enumerate(sidebar_button_definitions):
@@ -330,6 +336,36 @@ class GameRenderer:
             text_rect_for_button = text_surf_for_button.get_rect(center=current_button_rect.center)
             if button_is_being_clicked and not is_active_input_field: text_rect_for_button.y += 1
             self.screen.blit(text_surf_for_button, text_rect_for_button)
+
+        self._draw_status_panel(sidebar_full_rect)
+
+    def _q_agent_label(self, agent, trained):
+        if not trained:
+            return "sin entrenar"
+        if not agent.is_policy_current(self.game.game_state.obstacles):
+            return "desactualizado (mapa cambió)"
+        return "entrenado"
+
+    def _draw_status_panel(self, sidebar_rect):
+        """Resumen de la simulación en la parte baja de la barra lateral."""
+        game = self.game
+        font_status = pygame.font.SysFont(None, 17)
+        route_len = max(0, len(game.current_path_player) - game.path_index_player)
+        enemy_q = self._q_agent_label(game.enemy_q_agent, game.enemy_q_agent_trained)
+        player_q = self._q_agent_label(game.agent_player, game.player_agent_training_complete)
+        lines = [
+            f"Turno {game.turn_counter} | Pasos {game.step_counter}",
+            f"Ruta: {game.player_path_source} ({route_len} restantes)",
+            f"Enemigos: {len(game.game_state.enemies)} | Vel x{GameConfig.ENEMY_SPEED_FACTOR}",
+            f"Q Jugador: {player_q}",
+            f"Q Enemigo: {enemy_q}",
+        ]
+        line_height = 13
+        y = sidebar_rect.bottom - line_height * len(lines) - 4
+        for line in lines:
+            surf = font_status.render(line, True, GameConfig.LIGHT_GRAY)
+            self.screen.blit(surf, (sidebar_rect.left + 8, y))
+            y += line_height
 
     def get_button_at(self, mouse_click_coordinates):
         for button_identifier, rect_object_button in self.button_rects.items():

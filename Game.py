@@ -1,6 +1,5 @@
 import pygame
 import random
-import time
 import numpy as np
 from queue import Queue, Empty
 
@@ -10,11 +9,21 @@ from config import GameConfig
 from render import GameRenderer
 from ADB import QLearningAgent
 from HeatMapPathfinding import HeatMapPathfinding
+from grid_utils import manhattan, neighbors_4
 
 
 class Game:
     """
     Mi clase principal del juego. Aquí controlo toda la lógica y la UI.
+
+    El juego avanza por TURNOS (cada GameConfig.MOVE_DELAY ms):
+      1. El avatar da un paso por su ruta (o huye si no tiene ruta segura).
+      2. Si llegó a la casa: victoria.
+      3. Los enemigos acumulan ENEMY_SPEED_FACTOR y dan un paso por cada
+         unidad acumulada, cada uno según su tipo.
+      4. Si un enemigo ocupa la celda del avatar: game over.
+      5. Si hay amenaza en la ruta (o cada REPLAN_EVERY_TURNS turnos) el
+         avatar replanifica considerando la posición actual de los enemigos.
     """
 
     def __init__(self):
@@ -22,7 +31,9 @@ class Game:
         self.screen = pygame.display.set_mode((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
         pygame.display.set_caption("Mi Simulación de Movimiento Inteligente con Heatmap")
 
-        self.step_counter = 0
+        self.step_counter = 0  # Pasos que ha dado el avatar
+        self.turn_counter = 0  # Turnos de simulación transcurridos
+        self.enemy_move_accumulator = 0.0
         self.game_over = False
         self.is_running = False
         self.is_pygame_loop_running = True
@@ -33,6 +44,8 @@ class Game:
         self.current_path_player = []
         self.path_index_player = 0
         self.best_path_player = None
+        self.player_path_source = "Ninguna"
+        self._replan_requested = False  # Lo activan los hilos de entrenamiento; lo atiende el hilo principal
 
         self.enemy_q_agent = QLearningAgent(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.enemy_q_agent_trained = False
@@ -40,14 +53,14 @@ class Game:
         self.enemy_agent_training_progress = 0.0
         self.enemy_agent_training_status = ""
         self.enemy_agent_training_complete = False
-        self.enemy_agent_max_training_iterations = 1000
+        self.enemy_agent_max_training_iterations = 5000
 
         self.agent_player = QLearningAgent(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.player_agent_is_training = False
         self.player_agent_training_progress = 0.0
         self.player_agent_training_status = ""
         self.player_agent_training_complete = False
-        self.player_agent_max_training_iterations = 500
+        self.player_agent_max_training_iterations = 1500
 
         self.heat_map_pathfinder = HeatMapPathfinding(GameConfig.GRID_WIDTH, GameConfig.GRID_HEIGHT)
         self.avatar_heatmap_trained = False
@@ -72,9 +85,6 @@ class Game:
         self.input_buffer = ""
 
         self.determine_player_optimal_path()  # Calcular ruta inicial basada en el estado inicial
-        self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-            self.game_state.player_pos]
-        self.path_index_player = 0
 
     def _train_avatar_heatmap_on_init(self):
         print("\n=== ENTRENANDO/RE-ENTRENANDO HEATMAP DEL AVATAR ===")
@@ -106,72 +116,89 @@ class Game:
             self.environment_analyzed = False
         print("=== ENTRENAMIENTO HEATMAP AVATAR FINALIZADO ===\n")
 
+    # ================================================================ TURNOS
     def update(self):
-        if not self.is_running: return
+        """Ejecuta un turno cada MOVE_DELAY ms (HEADLESS_DELAY en modo sin cabeza)."""
+        if not self.is_running:
+            return
+        turn_delay = GameConfig.HEADLESS_DELAY if GameConfig.HEADLESS_MODE else GameConfig.MOVE_DELAY
         current_tick = pygame.time.get_ticks()
+        if current_tick - self.move_timer < turn_delay:
+            return
+        self.move_timer = current_tick
+        self.play_turn()
+
+    def play_turn(self):
+        """Un turno completo: avatar → victoria → enemigos → captura → replanificación."""
+        self.turn_counter += 1
+
+        self._advance_player()
+        if self._check_victory():
+            return
 
         if self.enemies_initialized and self.game_state.enemies:
             self._update_enemies()
+            if self._check_player_enemy_collision():
+                return
+            if self.turn_counter % GameConfig.REPLAN_EVERY_TURNS == 0 or self._path_is_threatened():
+                self.determine_player_optimal_path()
 
-        if self._check_player_enemy_collision():
+    def _advance_player(self):
+        """Da un paso por la ruta; si está bloqueada replanifica, y si no hay ruta segura, huye."""
+        if self._try_step_along_path():
             return
-        if not self.is_running: return  # Chequear de nuevo si _check_player_enemy_collision detuvo el juego
-
-        if GameConfig.HEADLESS_MODE and self.best_path_player:
-            if current_tick - self.move_timer >= GameConfig.HEADLESS_DELAY:
-                if self.path_index_player < len(self.best_path_player):
-                    next_pos = self.best_path_player[self.path_index_player]
-                    if self.game_state.is_valid_move(next_pos) and next_pos not in self.game_state.enemy_positions:
-                        self.game_state.player_pos = next_pos
-                        self.player_movement_frequency_matrix[next_pos[1]][next_pos[0]] += 1
-                        if next_pos == self.game_state.house_pos:  # Chequeo de victoria
-                            self.game_state.victory = True;
-                            self.is_running = False;
-                            print("HL: ¡Meta!")
-                            return
-                        else:
-                            self.path_index_player += 1
-                    else:
-                        self._recalculate_path_for_player_headless()
-                        if not self.best_path_player or not (self.path_index_player < len(self.best_path_player) and \
-                                                             self.best_path_player[
-                                                                 self.path_index_player] == self.game_state.player_pos):
-                            print("HL: Recálculo falló/inválido o ruta no empieza en pos actual. Deteniendo.");
-                            self.is_running = False
-                    self.move_timer = current_tick
-                else:
-                    self.is_running = False;
-                    print("HL: Ruta completada.")
+        self.determine_player_optimal_path()
+        if self._try_step_along_path():
             return
+        self._player_flee_step()
 
-        if current_tick - self.move_timer >= GameConfig.MOVE_DELAY:
-            moved_this_frame = False
-            if self.current_path_player and self.path_index_player < len(self.current_path_player):
-                if self.path_index_player == 0 and self.current_path_player[0] != self.game_state.player_pos:
-                    self._recalculate_player_path()
+    def _try_step_along_path(self):
+        path, idx = self.current_path_player, self.path_index_player
+        if not path or idx >= len(path):
+            return False
+        next_pos = path[idx]
+        if manhattan(next_pos, self.game_state.player_pos) != 1 or not self.game_state.is_valid_move(next_pos):
+            return False
+        self._move_player_to(next_pos)
+        self.path_index_player += 1
+        return True
 
-                if self.current_path_player and self.path_index_player < len(self.current_path_player):
-                    next_p_norm = self.current_path_player[self.path_index_player]
+    def _move_player_to(self, new_pos):
+        self.game_state.player_pos = new_pos
+        self.player_movement_frequency_matrix[new_pos[1]][new_pos[0]] += 1
+        self.step_counter += 1
 
-                    if self.game_state.is_valid_move(
-                            next_p_norm) and next_p_norm not in self.game_state.enemy_positions:
-                        self.game_state.player_pos = next_p_norm
-                        self.player_movement_frequency_matrix[next_p_norm[1]][next_p_norm[0]] += 1
-                        self.path_index_player += 1
-                        self.step_counter += 1
-                        moved_this_frame = True
-                    else:
-                        self._recalculate_player_path()
+    def _player_flee_step(self):
+        """
+        Sin ruta segura a la casa (p. ej. enemigos tapando un pasillo): si hay un
+        enemigo cerca, el avatar se mueve a la celda vecina más alejada de todos
+        los enemigos; si no, espera.
+        """
+        enemies = self.game_state.enemy_positions
+        here = self.game_state.player_pos
+        if not enemies or min(manhattan(here, e) for e in enemies) > GameConfig.DANGER_RADIUS:
+            return
+        options = [here] + [n for n in neighbors_4(here, self.game_state.grid_width, self.game_state.grid_height,
+                                                   self.game_state.obstacles) if n not in enemies]
+        best = max(options, key=lambda p: (min(manhattan(p, e) for e in enemies), random.random()))
+        if best != here:
+            self._move_player_to(best)
+            self.player_path_source = "Huida"
+            self.current_path_player = [best]
+            self.path_index_player = 1
 
-            if moved_this_frame:
-                self.move_timer = current_tick
+    def _check_victory(self):
+        if self.game_state.player_pos == self.game_state.house_pos and not self.game_state.victory:
+            self.game_state.victory = True
+            self.is_running = False
+            print(f"¡Meta alcanzada en {self.step_counter} pasos y {self.turn_counter} turnos!")
+        return self.game_state.victory
 
-        # Chequeo de victoria al final del update, después de cualquier movimiento del jugador
-        if self.game_state.player_pos == self.game_state.house_pos:
-            if not self.game_state.victory:  # Solo marcar si no se ha marcado ya (evitar múltiples prints)
-                self.game_state.victory = True;
-                self.is_running = False;
-                print("¡Meta alcanzada!")
+    def _path_is_threatened(self):
+        """True si algún enemigo está a 1 casilla o menos de las próximas celdas de la ruta."""
+        upcoming = self.current_path_player[self.path_index_player:
+                                            self.path_index_player + GameConfig.THREAT_LOOKAHEAD]
+        return any(manhattan(cell, e) <= 1 for cell in upcoming for e in self.game_state.enemy_positions)
 
     def _execute_player_random_move(self):
         val_rand = random.randint(1, 20);
@@ -192,101 +219,86 @@ class Game:
             self.player_movement_frequency_matrix[next_p_cand[1]][next_p_cand[0]] += 1
             self.step_counter += 1
             self.current_path_player = [self.game_state.player_pos]
-            self.path_index_player = 0
+            self.path_index_player = 1
             self.player_uses_heatmap_path = False
 
     def initiate_player_agent_training(self):
         if self.player_agent_is_training: print("Ent. Jugador ya en curso."); return
         if self.enemy_agent_is_training: print("Ent. Enemigo en curso, espera."); return
-        print("Iniciando ent. AGENTE JUGADOR...");
+        print("Iniciando ent. AGENTE JUGADOR...")
         self.game_state.player_pos = self.game_state.initial_player_pos
         self.player_movement_frequency_matrix.fill(0)
-        self.game_state.victory = False;
-        self.player_agent_is_training = True;
+        self.game_state.victory = False
+        self.player_agent_is_training = True
         self.player_agent_training_progress = 0.0
-        self.player_agent_training_complete = False;
+        self.player_agent_training_complete = False
         self.player_agent_training_status = "Ent. Jugador..."
-        obs_p_train = set(self.game_state.obstacles);
         self.agent_player.max_training_iterations = self.player_agent_max_training_iterations
 
         def p_q_cb(it, _p, _h, _bp, is_final=False):
-            self.player_agent_training_progress = (
-                                                          it / self.agent_player.max_training_iterations) * 100.0 if self.agent_player.max_training_iterations > 0 else 100.0
-            p_rew = getattr(self.agent_player, 'best_reward', -float('inf'))
-            self.player_agent_training_status = f"J:Recomp {p_rew:.1f}" if p_rew > -float('inf') else "J:Opt..."
+            # Se ejecuta en el hilo de entrenamiento: sólo actualiza indicadores.
+            max_it = self.agent_player.max_training_iterations
+            self.player_agent_training_progress = (it / max_it) * 100.0 if max_it > 0 else 100.0
+            success = self.agent_player.success_rate * 100
+            self.player_agent_training_status = f"J: éxito {success:.0f}%"
             if is_final:
-                self.player_agent_is_training = False;
+                self.player_agent_is_training = False
                 self.player_agent_training_complete = True
-                self.player_agent_training_status = f"J:COMPLETO (Rew:{p_rew:.1f})"
-                print("Ent. AGENTE JUGADOR finalizado (cbk).")
-
-                path_s = [self.game_state.initial_player_pos];
-                c_s = path_s[0]
-                for _ in range(GameConfig.GRID_WIDTH * GameConfig.GRID_HEIGHT * 2):
-                    if c_s == self.game_state.house_pos: break
-                    act_s = self.agent_player.get_learned_action_xy(c_s, obs_p_train,
-                                                                    target_pos=self.game_state.house_pos)
-                    if not act_s: break
-                    c_s = (c_s[0] + act_s[0], c_s[1] + act_s[1])
-                    if not self._is_pos_in_grid(c_s) or c_s in obs_p_train: break
-                    path_s.append(c_s)
-
-                if c_s == self.game_state.house_pos and len(path_s) > 1:
-                    print(f"Política del Jugador Q-Learning generó ruta de {len(path_s)} pasos.")
-                    if not self.best_path_player or len(path_s) < len(self.best_path_player):
-                        self.best_path_player = path_s
-                        print("Esta ruta Q-Learning es ahora la 'best_path_player'.")
-                else:
-                    print("Política del Jugador Q-Learning no llevó a la casa en simulación.");
-
-                self.determine_player_optimal_path()
+                self.player_agent_training_status = f"J: COMPLETO (éxito {success:.0f}%)"
+                print("Ent. AGENTE JUGADOR finalizado.")
+                self._replan_requested = True  # El hilo principal recalcula la ruta
 
         self.agent_player.train_background(self.game_state.house_pos, self.game_state.initial_player_pos,
-                                           obs_p_train, callback=p_q_cb, update_interval=30)
+                                           set(self.game_state.obstacles), callback=p_q_cb, update_interval=30)
+
+    def _q_policy_path(self):
+        """Ruta que produce la política del Agente Q Jugador desde la posición actual (o None)."""
+        path = self.agent_player.simulate_policy(self.game_state.player_pos, self.game_state.house_pos,
+                                                 set(self.game_state.obstacles))
+        if path[-1] != self.game_state.house_pos or len(path) < 2:
+            return None
+        if any(cell in self.game_state.enemy_positions for cell in path[1:]):
+            return None
+        return path
 
     def determine_player_optimal_path(self):
-        p_cand = None;
-        method_src = "Ninguno"
+        """
+        Calcula las rutas candidatas desde la posición ACTUAL del avatar y elige
+        la de menor costo de riesgo (pasos + peligro por cercanía a enemigos):
+          - Heatmap Avatar: A* sobre el mapa de calor, evitando enemigos.
+          - Agente Q Jugador: la política aprendida (si está entrenado y no
+            se forzó el heatmap con 'N').
+        """
+        enemies = set(self.game_state.enemy_positions)
+        candidates = []
 
-        if self.avatar_heatmap_trained and hasattr(self.heat_map_pathfinder, 'find_path_with_heat_map'):
-            hm_p = self.heat_map_pathfinder.find_path_with_heat_map(
-                self.game_state.player_pos,
-                self.game_state.house_pos,
-                obstacles=self.game_state.obstacles,
-                enemy_positions_set=set(self.game_state.enemy_positions),
-                is_avatar=True
-            )
-            if hm_p:
-                p_cand = hm_p;
-                method_src = "Heatmap Avatar"
+        if self.avatar_heatmap_trained:
+            hm_path = self.heat_map_pathfinder.find_path_with_heat_map(
+                self.game_state.player_pos, self.game_state.house_pos,
+                obstacles=self.game_state.obstacles, enemy_positions_set=enemies, is_avatar=True)
+            if hm_path:
+                candidates.append(("Heatmap Avatar", hm_path))
 
-        if self.player_agent_training_complete and hasattr(self.agent_player, 'get_learned_action_xy'):
-            q_p_s = [self.game_state.player_pos];
-            c_qp_s = q_p_s[0];
-            obs_qp_s = set(self.game_state.obstacles)
-            for _ in range(GameConfig.GRID_WIDTH * GameConfig.GRID_HEIGHT * 2):
-                if c_qp_s == self.game_state.house_pos: break
-                act_qp_s = self.agent_player.get_learned_action_xy(c_qp_s, obs_qp_s,
-                                                                   target_pos=self.game_state.house_pos)
-                if not act_qp_s: break
-                c_qp_s = (c_qp_s[0] + act_qp_s[0], c_qp_s[1] + act_qp_s[1])
-                if not self._is_pos_in_grid(c_qp_s) or c_qp_s in obs_qp_s: break
-                q_p_s.append(c_qp_s)
-            if c_qp_s == self.game_state.house_pos and len(q_p_s) > 1:
-                if not p_cand or len(q_p_s) < len(p_cand):
-                    p_cand = q_p_s;
-                    method_src = "Agente Q Jugador"
+        if self.player_agent_training_complete and not self.player_uses_heatmap_path and \
+                self.agent_player.is_policy_current(self.game_state.obstacles):
+            q_path = self._q_policy_path()
+            if q_path:
+                candidates.append(("Agente Q Jugador", q_path))
 
-        if p_cand:
-            self.best_path_player = p_cand
+        if candidates:
+            self.player_path_source, self.best_path_player = min(
+                candidates, key=lambda c: self.heat_map_pathfinder.path_cost(c[1], enemies))
         else:
-            self.best_path_player = None
+            self.player_path_source, self.best_path_player = "Ninguna", None
+        self._follow_path(self.best_path_player)
 
-        self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-            self.game_state.player_pos]
-        self.path_index_player = 0
-        if self.current_path_player and self.current_path_player[0] != self.game_state.player_pos:
+    def _follow_path(self, path):
+        """Carga `path` como ruta actual. path[0] es la celda actual; el índice apunta al siguiente paso."""
+        if path and path[0] == self.game_state.player_pos:
+            self.current_path_player = list(path)
+        else:
             self.current_path_player = [self.game_state.player_pos]
+        self.path_index_player = 1
 
     def toggle_game_running_state(self):
         if not self.is_running:  # Si el juego estaba detenido y se va a iniciar
@@ -303,13 +315,8 @@ class Game:
                 # Si enemies_initialized es True Y user_placed_enemies es False Y no hay enemigos, significa que se limpiaron
             # y el usuario no puso nuevos. Se correrá sin enemigos.
 
+            self.enemy_move_accumulator = 0.0
             self.determine_player_optimal_path()
-            self.path_index_player = 0
-
-            # if self.current_path_player and len(self.current_path_player) > 1 :
-            #     print(f"Juego iniciado. Siguiendo ruta de {len(self.current_path_player)}p desde {self.game_state.player_pos}")
-            # else:
-            #     print(f"Juego iniciado. No hay ruta planificada desde {self.game_state.player_pos}. Esperando.")
         else:  # Si el juego estaba corriendo y se va a detener
             self.is_running = False
             print("Juego detenido.")
@@ -319,8 +326,10 @@ class Game:
         self.game_state.initialize_game();
         self.player_movement_frequency_matrix.fill(0)
         self.best_path_player = None
-        self.step_counter = 0;
-        self.game_over = False;
+        self.step_counter = 0
+        self.turn_counter = 0
+        self.enemy_move_accumulator = 0.0
+        self.game_over = False
         self.enemies_initialized = False
         self.user_placed_enemies = False
         self.game_state.victory = False;
@@ -336,9 +345,6 @@ class Game:
         print("Juego reseteado. Aprendizaje agentes MANTENIDO.")
         self._train_avatar_heatmap_on_init()
         self.determine_player_optimal_path()
-        self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-            self.game_state.player_pos]
-        self.path_index_player = 0
 
     def generate_new_random_obstacles(self):
         self.game_state.generate_obstacles();
@@ -346,9 +352,6 @@ class Game:
         self.best_path_player = None
         self._train_avatar_heatmap_on_init()
         self.determine_player_optimal_path()
-        self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-            self.game_state.player_pos]
-        self.path_index_player = 0
 
     def clear_all_enemies(self):
         self.game_state.enemies.clear();
@@ -379,19 +382,12 @@ class Game:
             self.best_path_player = None
             self._train_avatar_heatmap_on_init()
             self.determine_player_optimal_path()
-            self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-                self.game_state.player_pos]
-            self.path_index_player = 0
 
     def reset_avatar_heatmap_data(self):
         self.heat_map_pathfinder.reset();
         self.avatar_heatmap_trained = False
         self.environment_analyzed = False
-        if self.player_uses_heatmap_path:
-            self.best_path_player = None
-            self.current_path_player = [self.game_state.player_pos]
-            self.path_index_player = 0
-        self.player_uses_heatmap_path = False;
+        self.player_uses_heatmap_path = False
         print("Heatmap Avatar reiniciado. Se requiere re-entrenamiento ('M').")
         self.determine_player_optimal_path()
 
@@ -439,29 +435,28 @@ class Game:
             print("Entrenamiento Heatmap Avatar DETENIDO por usuario.")
 
     def set_player_to_use_heatmap_path(self):
+        """
+        Alterna entre "elegir automáticamente la ruta más segura" (Heatmap o
+        Agente Q) y "forzar la ruta del Heatmap Avatar".
+        """
+        if self.player_uses_heatmap_path:
+            self.player_uses_heatmap_path = False
+            print("Selección de ruta AUTOMÁTICA (Heatmap o Agente Q, la de menor riesgo).")
+            self.determine_player_optimal_path()
+            return
+
         if not self.avatar_heatmap_trained:
-            print("Heatmap Avatar no entrenado. Entrenando interactivamente...");
+            print("Heatmap Avatar no entrenado. Entrenando interactivamente...")
             self.train_avatar_heatmap_interactive()
             if not self.avatar_heatmap_trained: print("Fallo al entrenar HM. No se puede usar."); return
 
-        path_hm_for_p = self.heat_map_pathfinder.find_path_with_heat_map(self.game_state.player_pos,
-                                                                         self.game_state.house_pos,
-                                                                         obstacles=self.game_state.obstacles,
-                                                                         enemy_positions_set=set(
-                                                                             self.game_state.enemy_positions),
-                                                                         is_avatar=True)
-        if path_hm_for_p:
-            print(f"Jugador usará ruta desde Heatmap Avatar: {len(path_hm_for_p)}p.");
-            self.current_path_player = path_hm_for_p;
-            self.path_index_player = 0
-            self.player_uses_heatmap_path = True;
-            if not self.best_path_player or len(path_hm_for_p) < len(self.best_path_player):
-                self.best_path_player = path_hm_for_p
+        self.player_uses_heatmap_path = True
+        self.determine_player_optimal_path()
+        if self.player_path_source == "Heatmap Avatar":
+            print(f"Jugador FORZADO a seguir el Heatmap Avatar: {len(self.current_path_player)}p.")
             if not self.is_running: print("Ruta de Heatmap cargada. Presiona Iniciar para seguirla.")
         else:
-            print("No se encontró ruta usando Heatmap para la posición actual del jugador.");
-            self.player_uses_heatmap_path = False
-            self.determine_player_optimal_path()
+            print("No se encontró ruta usando Heatmap para la posición actual del jugador.")
 
     def request_avatar_heatmap_visualization(self):
         if not self.avatar_heatmap_trained: print("HM Av no entrenado."); return
@@ -476,6 +471,7 @@ class Game:
                                               'goal_pos': self.game_state.house_pos,
                                               'path': path_to_display,
                                               'obstacles_vis': list(self.game_state.obstacles),
+                                              'enemies_vis': list(self.game_state.enemy_positions),
                                               'title': "Mapa Calor - Rutas Avatar (desde pos actual)",
                                               'show': True,
                                               'save_path': "heatmap_avatar_visualizado.png"}})
@@ -687,7 +683,7 @@ class Game:
                 else:
                     print(f"Error al remover enemigo ID {enemy_id_at_click}.")
             else:
-                default_type_on_click = random.choice(["perseguidor", "bloqueador", "patrulla", "aleatorio"])
+                default_type_on_click = random.choice(GameConfig.ENEMY_TYPES)
                 newly_added_enemy_id = self.game_state.add_enemy(clicked_grid_pos_tuple, default_type_on_click)
                 if newly_added_enemy_id is not None:
                     print(f"Enemigo '{default_type_on_click}' ID {newly_added_enemy_id} en {clicked_grid_pos_tuple}")
@@ -702,9 +698,6 @@ class Game:
             self.best_path_player = None
             self._train_avatar_heatmap_on_init()
             self.determine_player_optimal_path()
-            self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-                self.game_state.player_pos]
-            self.path_index_player = 0
 
     def _process_ui_button_click(self, button_id_str_clicked):
         field_id_of_button = None
@@ -765,9 +758,6 @@ class Game:
             self.best_path_player = None;
             self._train_avatar_heatmap_on_init()
             self.determine_player_optimal_path()
-            self.current_path_player = self.best_path_player.copy() if self.best_path_player else [
-                self.game_state.player_pos]
-            self.path_index_player = 0
             print("Obstáculos borrados.")
         elif button_id_str_clicked == "clear_enemies":
             self.clear_all_enemies()
@@ -818,7 +808,11 @@ class Game:
                             gy_clk = event.pos[1] // GameConfig.SQUARE_SIZE
                             self.process_grid_click_in_edit_mode((gx_clk, gy_clk))
 
-            self.update();
+            if self._replan_requested:  # Pedido por un hilo de entrenamiento al terminar
+                self._replan_requested = False
+                self.determine_player_optimal_path()
+
+            self.update()
             self.renderer.render()
 
             y_prog_start_draw = GameConfig.SCREEN_HEIGHT - 20
@@ -883,116 +877,190 @@ class Game:
         pass
 
     def initiate_enemy_q_agent_training(self):
+        """
+        Entrena UNA política compartida por todos los enemigos. Cada episodio
+        persigue un objetivo aleatorio, así la política sirve para alcanzar al
+        jugador esté donde esté (y para cualquier objetivo intermedio).
+        """
         if self.enemy_agent_is_training: print("El Q-Agent Enemigo ya está entrenando."); return
         if self.player_agent_is_training: print("El Agente Jugador está entrenando, espera."); return
-        print("Iniciando entrenamiento del Q-Agent para ENEMIGOS...");
-        self.enemy_agent_is_training = True;
+        print("Iniciando entrenamiento del Q-Agent para ENEMIGOS (objetivos aleatorios)...")
+        self.enemy_agent_is_training = True
         self.enemy_agent_training_progress = 0.0
-        self.enemy_agent_training_complete = False;
+        self.enemy_agent_training_complete = False
         self.enemy_agent_training_status = "Entrenando Enemigos..."
 
-        target_for_enemy_q = self.game_state.player_pos
-        enemy_q_start_pos = (1, 1)
-
+        target_for_enemy_q = self.game_state.player_pos  # Sólo como referencia para las gráficas F2/F4
+        enemy_q_start_pos = self._find_random_valid_start(target_for_enemy_q)
         if self.game_state.enemies:
-            valid_enemy_starts = [e_data['position'] for e_data in self.game_state.enemies.values()
-                                  if self._is_pos_in_grid(e_data['position']) and \
-                                  e_data['position'] != target_for_enemy_q and \
-                                  e_data['position'] not in self.game_state.obstacles]
-            if valid_enemy_starts:
-                enemy_q_start_pos = random.choice(valid_enemy_starts)
-            else:
-                enemy_q_start_pos = self._find_random_valid_start(target_for_enemy_q)
-        else:
-            enemy_q_start_pos = self._find_random_valid_start(target_for_enemy_q)
+            enemy_q_start_pos = next(iter(self.game_state.enemies.values()))['position']
 
-        obs_for_e_t = set(self.game_state.obstacles);
         self.enemy_q_agent.max_training_iterations = self.enemy_agent_max_training_iterations
-        self.enemy_q_agent.train_background(target_for_enemy_q, enemy_q_start_pos, obs_for_e_t,
-                                            callback=self._enemy_q_agent_training_callback, update_interval=30)
+        self.enemy_q_agent.train_background(target_for_enemy_q, enemy_q_start_pos, set(self.game_state.obstacles),
+                                            callback=self._enemy_q_agent_training_callback, update_interval=30,
+                                            randomize_targets=True)
 
     def _find_random_valid_start(self, target_pos):
-        max_tries_e_start = 100
-        for _ in range(max_tries_e_start):
+        for _ in range(100):
             pos = (random.randint(0, GameConfig.GRID_WIDTH - 1),
                    random.randint(0, GameConfig.GRID_HEIGHT - 1))
-            if pos != target_pos and self._is_pos_in_grid(pos) and pos not in self.game_state.obstacles:
+            if pos != target_pos and pos not in self.game_state.obstacles:
                 return pos
-        # print("Fallo al encontrar pos aleatoria válida para Q-Agente. Usando (1,1).") # Spam
         return (1, 1)
 
     def _enemy_q_agent_training_callback(self, iteration, _pe_ign, _he_ign, _bpe_pol_ign, is_final=False):
-        if hasattr(self.enemy_q_agent, 'max_training_iterations') and self.enemy_q_agent.max_training_iterations > 0:
-            self.enemy_agent_training_progress = (iteration / self.enemy_q_agent.max_training_iterations) * 100.0
-        else:
-            self.enemy_agent_training_progress = 100.0 if iteration > 0 else 0.0
-        e_q_b_rew = getattr(self.enemy_q_agent, 'best_reward', -float('inf'))
-        if e_q_b_rew > -float('inf'):
-            self.enemy_agent_training_status = f"Enemigo - Recomp: {e_q_b_rew:.1f}"
-        else:
-            self.enemy_agent_training_status = "Enemigo - Optimizando..."
+        max_it = self.enemy_q_agent.max_training_iterations
+        self.enemy_agent_training_progress = (iteration / max_it) * 100.0 if max_it > 0 else 100.0
+        success = self.enemy_q_agent.success_rate * 100
+        self.enemy_agent_training_status = f"Enemigo - éxito {success:.0f}%"
         if is_final:
-            self.enemy_agent_is_training = False;
-            self.enemy_agent_training_complete = True;
+            self.enemy_agent_is_training = False
+            self.enemy_agent_training_complete = True
             self.enemy_q_agent_trained = True
-            final_e_msg = "Enemigo - Ent. COMPLETO!"
-            if e_q_b_rew > -float('inf'): final_e_msg += f" Recomp: {e_q_b_rew:.1f}"
-            self.enemy_agent_training_status = final_e_msg;
-            print("Ent. Q-Agent ENEMIGO finalizado (cbk).")
+            self.enemy_agent_training_status = f"Enemigo - COMPLETO (éxito {success:.0f}%)"
+            print("Ent. Q-Agent ENEMIGO finalizado.")
 
-    def _recalculate_player_path(self):
-        self.determine_player_optimal_path()
-        if not (self.current_path_player and len(self.current_path_player) > 1):
-            pass
-
-    def _recalculate_path_for_player_headless(self):
-        self.determine_player_optimal_path()
-        if self.best_path_player:
-            self.path_index_player = 0
-        else:
-            self.best_path_player = None
-            self.path_index_player = 0
-
+    # ============================================================== ENEMIGOS
     def _update_enemies(self):
+        """
+        Velocidad relativa con acumulador: cada turno se suma ENEMY_SPEED_FACTOR
+        y por cada unidad completa los enemigos dan un paso. Así 0.5 = 1 paso
+        cada 2 turnos, 0.75 = 3 pasos cada 4 turnos y 2.0 = 2 pasos por turno.
+        """
         if not self.is_running or self.game_state.victory or self.game_over: return
         if not self.enemies_initialized or not self.game_state.enemies: return
+        if GameConfig.ENEMY_SPEED_FACTOR <= 0: return
 
-        player_steps_per_enemy_move = 1
-        if 0 < GameConfig.ENEMY_SPEED_FACTOR < 1:
-            player_steps_per_enemy_move = int(1 / GameConfig.ENEMY_SPEED_FACTOR)
-        elif GameConfig.ENEMY_SPEED_FACTOR >= 1:
-            player_steps_per_enemy_move = 1
-        else:
-            player_steps_per_enemy_move = 1000  # Factor inválido, hacer que se muevan muy lento
+        self.enemy_move_accumulator += GameConfig.ENEMY_SPEED_FACTOR
+        while self.enemy_move_accumulator >= 1.0:
+            self.enemy_move_accumulator -= 1.0
+            self._move_all_enemies_once()
+            if self.game_state.player_pos in self.game_state.enemy_positions:
+                break
 
-        if self.step_counter > 0 and self.step_counter % player_steps_per_enemy_move == 0:
-            for e_id, e_data in list(self.game_state.enemies.items()):
-                curr_e_pos = e_data['position'];
-                next_e_pos = curr_e_pos
+    def _move_all_enemies_once(self):
+        for e_id, e_data in list(self.game_state.enemies.items()):
+            current = e_data['position']
+            target = self._enemy_target(e_data)
+            next_pos = self._enemy_next_step(e_data, target)
+            if next_pos != current and self.game_state.update_enemy_position(e_id, next_pos):
+                recent = e_data.setdefault('recent', [])
+                recent.append(current)
+                del recent[:-GameConfig.ENEMY_LOOP_MEMORY]
+            if next_pos == self.game_state.player_pos:
+                return
 
-                if self.enemy_q_agent_trained and hasattr(self.enemy_q_agent, 'get_learned_action_xy'):
-                    act_xy_e = self.enemy_q_agent.get_learned_action_xy(curr_e_pos, self.game_state.obstacles,
-                                                                        target_pos=self.game_state.player_pos)
-                    if act_xy_e:
-                        pot_next_e = (curr_e_pos[0] + act_xy_e[0], curr_e_pos[1] + act_xy_e[1])
-                        if self._is_pos_in_grid(pot_next_e) and \
-                                pot_next_e not in self.game_state.obstacles and \
-                                (pot_next_e == self.game_state.player_pos or pot_next_e not in (
-                                        self.game_state.enemy_positions - {curr_e_pos})):
-                            next_e_pos = pot_next_e
-                else:
-                    poss_rand_e_mvs = [];
-                    for dx_re, dy_re in self.enemy_q_agent.actions_xy:
-                        rand_p_e = (curr_e_pos[0] + dx_re, curr_e_pos[1] + dy_re)
-                        if self._is_pos_in_grid(rand_p_e) and \
-                                rand_p_e not in self.game_state.obstacles and \
-                                (rand_p_e == self.game_state.player_pos or rand_p_e not in (
-                                        self.game_state.enemy_positions - {curr_e_pos})):
-                            poss_rand_e_mvs.append(rand_p_e)
-                    if poss_rand_e_mvs: next_e_pos = random.choice(poss_rand_e_mvs)
+    def _enemy_target(self, e_data):
+        """
+        Decide hacia dónde va cada tipo de enemigo (None = movimiento libre):
+        - perseguidor: directo a la posición actual del jugador.
+        - bloqueador: a la celda BLOCKER_LOOKAHEAD pasos adelante en la ruta del
+          jugador (le corta el paso); si está a 2 casillas o menos, lo ataca.
+        - patrulla: recorre una ronda alrededor de su punto de aparición; si ve
+          al jugador (PATROL_DETECTION_RADIUS) lo persigue hasta perderlo
+          (PATROL_LOSE_RADIUS) y entonces vuelve a su ronda.
+        - aleatorio: deambula con inercia.
+        """
+        enemy_type = e_data.get('type', GameConfig.DEFAULT_ENEMY_TYPE)
+        position, player = e_data['position'], self.game_state.player_pos
+        distance_to_player = manhattan(position, player)
 
-                if next_e_pos != curr_e_pos:
-                    self.game_state.update_enemy_position(e_id, next_e_pos)
+        if enemy_type == 'aleatorio':
+            e_data['state'] = 'wander'
+            return None
+
+        if enemy_type == 'bloqueador':
+            remaining = self.current_path_player[self.path_index_player:-1]  # Sin la casa (no la pueden pisar)
+            if distance_to_player <= 2 or not remaining:
+                e_data['state'] = 'chase'
+                return player
+            e_data['state'] = 'intercept'
+            return remaining[min(GameConfig.BLOCKER_LOOKAHEAD, len(remaining)) - 1]
+
+        if enemy_type == 'patrulla':
+            if e_data.get('state') == 'chase':
+                if distance_to_player > GameConfig.PATROL_LOSE_RADIUS:
+                    e_data['state'] = 'patrol'
+            elif distance_to_player <= GameConfig.PATROL_DETECTION_RADIUS:
+                e_data['state'] = 'chase'
+                print(f"Patrulla en {position} detectó al jugador.")
+            else:
+                e_data['state'] = 'patrol'
+            if e_data['state'] == 'chase':
+                return player
+            return self._next_patrol_waypoint(e_data)
+
+        e_data['state'] = 'chase'  # perseguidor
+        return player
+
+    def _next_patrol_waypoint(self, e_data):
+        route = e_data.get('patrol_path')
+        if not route:
+            route = self._build_patrol_route(e_data['position'])
+            e_data['patrol_path'], e_data['patrol_index'] = route, 0
+        if e_data['position'] == route[e_data['patrol_index']]:
+            e_data['patrol_index'] = (e_data['patrol_index'] + 1) % len(route)
+        return route[e_data['patrol_index']]
+
+    def _build_patrol_route(self, center):
+        """Ronda: el punto de aparición + hasta 3 celdas libres a ~PATROL_RADIUS (una por cuadrante)."""
+        route = [center]
+        radius = GameConfig.PATROL_RADIUS
+        for sign_x, sign_y in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
+            candidates = [(center[0] + sign_x * dx, center[1] + sign_y * (radius - dx)) for dx in range(radius + 1)]
+            candidates = [c for c in candidates if self._is_pos_in_grid(c) and c not in self.game_state.obstacles
+                          and c != self.game_state.house_pos]
+            if candidates:
+                route.append(random.choice(candidates))
+            if len(route) == 4:
+                break
+        return route
+
+    def _enemy_next_step(self, e_data, target):
+        """
+        Elige la siguiente celda del enemigo:
+        - Sin objetivo: paseo aleatorio con inercia.
+        - Ya en el objetivo (bloqueador en su punto de corte): espera.
+        - Con Agente Q Enemigo entrenado EN ESTE MAPA: la acción de la política
+          aprendida (sabe rodear muros porque aprendió con distancias reales).
+        - Sin entrenar: "instinto" voraz, el vecino que más reduce la distancia
+          Manhattan (se atasca detrás de los muros: por eso conviene entrenar).
+        En ambos casos, una memoria corta evita oscilar entre dos celdas.
+        """
+        position = e_data['position']
+        blocked = self.game_state.obstacles | (self.game_state.enemy_positions - {position}) | \
+            {self.game_state.house_pos}
+        options = neighbors_4(position, self.game_state.grid_width, self.game_state.grid_height, blocked)
+        if not options:
+            return position
+
+        if target is None:
+            dx, dy = e_data.get('direction', (0, 0))
+            keep_going = (position[0] + dx, position[1] + dy)
+            if keep_going in options and random.random() < GameConfig.RANDOM_ENEMY_INERTIA:
+                return keep_going
+            return random.choice(options)
+
+        if target == position:
+            return position  # Emboscada: ya está donde quería estar, espera al jugador
+        if target in options:
+            return target
+
+        next_pos = None
+        if self.enemy_q_agent_trained and self.enemy_q_agent.is_policy_current(self.game_state.obstacles):
+            action = self.enemy_q_agent.get_learned_action_xy(position, blocked, target_pos=target)
+            if action:
+                next_pos = (position[0] + action[0], position[1] + action[1])
+        if next_pos is None:
+            best_distance = min(manhattan(o, target) for o in options)
+            next_pos = random.choice([o for o in options if manhattan(o, target) == best_distance])
+
+        recent = e_data.get('recent', [])
+        if next_pos in recent:
+            fresh = [o for o in options if o not in recent]
+            if fresh:
+                next_pos = random.choice(fresh)
+        return next_pos
 
     def _check_player_enemy_collision(self):
         if not self.is_running or self.game_state.victory or self.game_over: return False
@@ -1029,7 +1097,7 @@ class Game:
                         e_pos_config != self.game_state.player_pos and \
                         e_pos_config != self.game_state.house_pos and \
                         e_pos_config not in used_pos_e_init:
-                    e_type_for_p = random.choice(["perseguidor", "bloqueador", "patrulla", "aleatorio"])
+                    e_type_for_p = random.choice(GameConfig.ENEMY_TYPES)
                     new_e_id_game = self.game_state.add_enemy(e_pos_config, e_type_for_p)
                     if new_e_id_game is not None:
                         used_pos_e_init.add(e_pos_config);
@@ -1038,7 +1106,7 @@ class Game:
         enemies_to_place_strategically = num_e_init - placed_e_cnt
         if enemies_to_place_strategically > 0:
             for i_e_place in range(enemies_to_place_strategically):
-                e_type_for_p = random.choice(["perseguidor", "bloqueador", "patrulla", "aleatorio"])
+                e_type_for_p = random.choice(GameConfig.ENEMY_TYPES)
                 pos_e_for_p = self._get_strategic_position_for_enemy(e_type_for_p, list(used_pos_e_init))
                 if pos_e_for_p:
                     new_e_id_game = self.game_state.add_enemy(pos_e_for_p, e_type_for_p)
