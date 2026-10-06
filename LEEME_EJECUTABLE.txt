@@ -1,0 +1,27 @@
+JuegoIA · Bomber Mind — cómo jugar en Windows
+============================================
+
+OPCIÓN 1: JuegoIA.exe (no necesita nada instalado)
+  1. Doble clic en JuegoIA.exe.
+  2. Windows puede mostrar "Windows protegió tu PC" porque el ejecutable no
+     está firmado digitalmente. Pulsa "Más información" y luego
+     "Ejecutar de todas formas".
+  3. El primer arranque tarda unos segundos (se descomprime solo).
+
+OPCIÓN 2: JuegoIA_portable.py (sólo necesita Python 3.8 o superior)
+  1. Instala Python desde https://www.python.org/downloads/
+     (marca "Add python.exe to PATH").
+  2. Doble clic en Jugar.bat (o en JuegoIA_portable.py).
+  3. La primera vez pregunta si instalar pygame, numpy y matplotlib: responde S.
+
+CONTROLES PRINCIPALES
+  Espacio  iniciar / pausar          Tab   cambiar vista (2D, Mapa 3D, 1ª persona)
+  Esc      menú                      T     mostrar/ocultar rastro de feromona
+  H / Q    entrenar IA del jugador / de los enemigos
+  M        entrenar el mapa de calor (hormigas)
+  P C O E  editar jugador, casa, muros, enemigos
+  F11      pantalla completa
+  Mapa 3D: arrastra con el ratón para girar, rueda para acercar.
+
+Si algo falla, ejecuta en una consola:  JuegoIA.exe --selftest
+(o  py JuegoIA_portable.py --selftest ) y comparte el mensaje que aparece.

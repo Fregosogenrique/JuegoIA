@@ -7,6 +7,7 @@ from GameState import GameState
 # from DecisionTree import DecisionTree # Comentado - no se usa activamente
 from config import GameConfig
 from render import GameRenderer
+from sprites import SpriteFactory
 from ui import MenuScreen
 from ADB import QLearningAgent
 from HeatMapPathfinding import HeatMapPathfinding
@@ -100,6 +101,7 @@ class Game:
     def _create_window():
         """Ventana escalable (se puede redimensionar y poner a pantalla completa con F11)."""
         size = (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT)
+        pygame.display.set_icon(SpriteFactory().player(32))  # Icono de la ventana: el avatar
         try:
             return pygame.display.set_mode(size, pygame.SCALED | pygame.RESIZABLE)
         except pygame.error:

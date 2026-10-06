@@ -30,10 +30,10 @@ import random
 import threading
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from grid_utils import UNREACHABLE, bfs_distance_map
+from plotting import plt
 
 # Desplazamiento relativo al objetivo, recortado a [-R, R] en cada eje.
 # Con R=2: distingue "alineado", "a 1 casilla" y "lejos" en cada eje (5x5 = 25 sectores).

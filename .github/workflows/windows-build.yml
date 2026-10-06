@@ -1,0 +1,80 @@
+name: Ejecutable de Windows
+
+# Compila JuegoIA.exe en una máquina Windows real, lo prueba y lo publica:
+# - en cada push: como artefacto descargable de la ejecución (pestaña Actions);
+# - al publicar una etiqueta v* (p. ej. v2.1.0): además, como Release del repositorio.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Necesario sólo para adjuntar el .exe a un Release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Pruebas de las mecánicas
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+          MPLBACKEND: Agg
+        run: python -m unittest test_mecanicas -v
+
+      - name: Comprobar que JuegoIA_portable.py está actualizado
+        run: python tools/build_portable.py --check
+
+      - name: Generar icono
+        run: python tools/make_icon.py
+
+      - name: Compilar JuegoIA.exe
+        run: pyinstaller --noconfirm --onefile --windowed --name JuegoIA --icon build_assets/JuegoIA.ico main.py
+
+      - name: Autoprueba del .exe (sin ventana)
+        shell: pwsh
+        run: |
+          $env:SDL_VIDEODRIVER = "dummy"
+          $env:SDL_AUDIODRIVER = "dummy"
+          $p = Start-Process -FilePath "dist\JuegoIA.exe" -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "La autoprueba del ejecutable falló (código $($p.ExitCode))" }
+          Write-Host "Autoprueba del ejecutable superada."
+
+      - name: Autoprueba de la versión portátil
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: python JuegoIA_portable.py --selftest
+
+      - name: Preparar paquete
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force paquete | Out-Null
+          Copy-Item dist\JuegoIA.exe, JuegoIA_portable.py, Jugar.bat, LEEME_EJECUTABLE.txt -Destination paquete
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: JuegoIA-Windows
+          path: paquete/
+
+      - name: Publicar Release (sólo etiquetas v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            paquete/JuegoIA.exe
+            paquete/JuegoIA_portable.py
+            paquete/Jugar.bat
+            paquete/LEEME_EJECUTABLE.txt
