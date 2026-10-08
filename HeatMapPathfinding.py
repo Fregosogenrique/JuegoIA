@@ -27,11 +27,11 @@ import heapq
 import math
 import random
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from config import GameConfig
 from grid_utils import UNREACHABLE, bfs_distance_map, manhattan, neighbors_4
+from plotting import plt
 
 
 class HeatMapPathfinding:

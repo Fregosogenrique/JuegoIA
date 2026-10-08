@@ -141,6 +141,11 @@ Resumen; la explicación completa, con fórmulas y parámetros, está en **[MECA
 
 ## Instalación
 
+### Jugar sin instalar nada (Windows)
+- **`JuegoIA.exe`**: en la pestaña **Actions** del repositorio, abre la última ejecución de "Ejecutable de Windows" y descarga el artefacto **JuegoIA-Windows**. Si se publica una etiqueta `v*` (por ejemplo `v2.1.0`), el `.exe` también aparece en **Releases**. Windows puede avisar "Windows protegió tu PC" porque el ejecutable no está firmado: pulsa *Más información* → *Ejecutar de todas formas*.
+- **`JuegoIA_portable.py`**: todo el juego en **un solo archivo**; sólo necesita Python 3.8 o superior. Doble clic en `Jugar.bat` (o `py JuegoIA_portable.py`). La primera vez ofrece instalar pygame, numpy y matplotlib con pip (si `pygame` no tiene versión para tu Python, usa `pygame-ce`).
+- Ambos aceptan `--selftest` para comprobar la instalación sin abrir ventana.
+
 ### Requisitos
 - Python 3.x (probado con 3.9+)
 - Pygame (probado con 2.x)
@@ -153,7 +158,7 @@ Resumen; la explicación completa, con fórmulas y parámetros, está en **[MECA
 3.  Abre una terminal o línea de comandos en la carpeta del proyecto.
 4.  Instala las dependencias (se recomienda usar un entorno virtual):
     ```bash
-    pip install pygame numpy matplotlib
+    pip install -r requirements.txt
     ```
 5.  No hacen falta archivos de imagen: todos los gráficos se dibujan por código (`sprites.py`).
 6.  Ejecuta el juego:
@@ -184,6 +189,12 @@ Resumen; la explicación completa, con fórmulas y parámetros, está en **[MECA
     ├── effects.py # Partículas, explosión en cruz, textos flotantes, temblor
     ├── view3d.py # Vista "Mapa 3D": maqueta en perspectiva con cámara orbital
     ├── raycaster.py # Vista en primera persona (raycasting)
+    ├── plotting.py # Carga diferida de matplotlib (las gráficas son opcionales)
+    ├── JuegoIA_portable.py # Todo el juego en un solo .py (GENERADO por tools/build_portable.py)
+    ├── Jugar.bat # Abre la versión portátil con doble clic en Windows
+    ├── requirements.txt # Dependencias: pygame, numpy, matplotlib
+    ├── tools/ # build_portable.py (genera el .py portátil) y make_icon.py (icono del .exe)
+    ├── .github/workflows/windows-build.yml # Compila y prueba JuegoIA.exe en Windows
     ├── test_mecanicas.py # Pruebas automáticas de las mecánicas (python -m unittest test_mecanicas)
     ├── MECANICAS.md # Explicación detallada de cada mecánica
     └── README.md # Esta documentación
@@ -224,6 +235,7 @@ Desarrollado como proyecto del curso de Inteligencia Artificial 2024A en CUValle
 ---
 
 ## Registro de Versiones (Ejemplo)
+- v2.1.1 (Octubre 2026): Distribución para Windows: `JuegoIA.exe` (compilado y probado en GitHub Actions), versión portátil en un solo `.py` que instala sus dependencias, `Jugar.bat` y modo `--selftest`.
 - v2.1.0 (Octubre 2026): Interfaz de videojuego estilo Bomberman.
   * Menú principal animado, pantalla de controles y pausa.
   * Sprites, animaciones y efectos generados por código; marcador superior y panel lateral por secciones.
